@@ -8,6 +8,10 @@ public class QAPreviewViewModel
     public List<QAPair> QAPairs { get; set; } = new();
     public string? QaType { get; set; }
     public int CountPerChunk { get; set; } = 3;
+    public string? FilterType { get; set; }
+    public List<string> TypeList { get; set; } = new();
+    public int TotalCount { get; set; }
+    public int AnsweredCount { get; set; }
 }
 
 public class QAEditViewModel

@@ -1,13 +1,23 @@
 @model QAPreviewViewModel
 @{
     ViewData["Title"] = "问答对管理 - " + Model.Document.FileName;
+    var projectId = ViewData["ProjectId"] as int? ?? Model.Document.ProjectId;
 }
 
 <div class="container-fluid">
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">首页</a></li>
-            <li class="breadcrumb-item active">@Model.Document.FileName</li>
+            @if (ViewData["IsProjectView"] is true)
+            {
+                <li class="breadcrumb-item"><a asp-controller="Project" asp-action="Detail" asp-route-id="@ViewData["ProjectId"]">项目</a></li>
+                <li class="breadcrumb-item active">所有问答</li>
+            }
+            else
+            {
+                <li class="breadcrumb-item"><a asp-controller="Project" asp-action="Detail" asp-route-id="@Model.Document.ProjectId">项目</a></li>
+                <li class="breadcrumb-item active">@Model.Document.FileName</li>
+            }
         </ol>
     </nav>
 
@@ -18,6 +28,36 @@
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     }
+
+    @* 类型筛选栏 + 统计信息 *@
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center gap-2">
+                    <form method="get" class="d-flex align-items-center gap-2" id="filterForm">
+                        <label for="filterType" class="form-label mb-0">类型筛选：</label>
+                        <select name="filterType" id="filterType" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                            <option value="">全部类型</option>
+                            @foreach (var type in Model.TypeList)
+                            {
+                                @if (type == Model.FilterType)
+                                {
+                                    <option value="@type" selected>@type</option>
+                                }
+                                else
+                                {
+                                    <option value="@type">@type</option>
+                                }
+                            }
+                        </select>
+                    </form>
+                </div>
+                <div>
+                    <span class="text-muted">共 @Model.TotalCount 条，@Model.AnsweredCount 条已回答</span>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
@@ -71,7 +111,7 @@
     {
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">问题列表（共 @Model.QAPairs.Count 条）</h5>
+                <h5 class="mb-0">问题列表</h5>
                 <div>
                     @if (Model.QAPairs.Any(q => !q.Answered))
                     {
@@ -84,15 +124,21 @@
                 </div>
             </div>
             <div class="card-body p-0">
+                @* 批量操作栏 *@
+                <div class="p-2 border-bottom d-flex gap-2">
+                    <button id="btnExportSelected" class="btn btn-sm btn-primary" disabled>导出选中</button>
+                    <a asp-controller="Export" asp-action="Download" asp-route-projectId="@projectId" class="btn btn-sm btn-outline-secondary">导出全部</a>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-hover table-striped mb-0">
                         <thead class="table-light">
                             <tr>
+                                <th style="width: 40px;"><input type="checkbox" id="selectAll"></th>
                                 <th style="width: 60px;">序号</th>
                                 <th>问题</th>
                                 <th>答案</th>
                                 <th style="width: 100px;">状态</th>
-                                <th style="width: 180px;">操作</th>
+                                <th style="width: 200px;">操作</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -102,6 +148,7 @@
                             @foreach (var qa in Model.QAPairs)
                             {
                                 <tr>
+                                    <td><input type="checkbox" class="qa-checkbox" value="@qa.Id"></td>
                                     <td>@(index++)</td>
                                     <td>
                                         @if (qa.Instruction.Length > 100)
@@ -161,3 +208,61 @@
         </div>
     }
 </div>
+
+@section Scripts {
+    <script>
+        (function() {
+            var selectAll = document.getElementById('selectAll');
+            var checkboxes = document.querySelectorAll('.qa-checkbox');
+            var btnExport = document.getElementById('btnExportSelected');
+
+            function updateSelectAll() {
+                if (checkboxes.length === 0) return;
+                var allChecked = true;
+                for (var i = 0; i < checkboxes.length; i++) {
+                    if (!checkboxes[i].checked) {
+                        allChecked = false;
+                        break;
+                    }
+                }
+                selectAll.checked = allChecked;
+            }
+
+            function updateExportButton() {
+                var anyChecked = false;
+                for (var i = 0; i < checkboxes.length; i++) {
+                    if (checkboxes[i].checked) {
+                        anyChecked = true;
+                        break;
+                    }
+                }
+                btnExport.disabled = !anyChecked;
+            }
+
+            selectAll.addEventListener('change', function() {
+                for (var i = 0; i < checkboxes.length; i++) {
+                    checkboxes[i].checked = selectAll.checked;
+                }
+                updateExportButton();
+            });
+
+            for (var i = 0; i < checkboxes.length; i++) {
+                checkboxes[i].addEventListener('change', function() {
+                    updateSelectAll();
+                    updateExportButton();
+                });
+            }
+
+            btnExport.addEventListener('click', function() {
+                var selectedIds = [];
+                for (var i = 0; i < checkboxes.length; i++) {
+                    if (checkboxes[i].checked) {
+                        selectedIds.push(checkboxes[i].value);
+                    }
+                }
+                if (selectedIds.length === 0) return;
+                window.location.href = '/Export/ExportSelected?qaIds=' + selectedIds.join(',');
+            });
+        })();
+    </script>
+}

@@ -11,19 +11,27 @@
     <div class="col-md-4">
         <div class="card shadow-sm h-100">
             <div class="card-body text-center">
-                <h5 class="card-title">项目管理</h5>
+                <h5 class="card-title"><i class="bi bi-folder2"></i> 项目管理</h5>
                 <p class="card-text text-muted">创建和管理数据集项目，每个项目包含一组文档和 QA 对。</p>
-                <a asp-controller="Project" asp-action="Index" class="btn btn-primary">进入项目列表</a>
-                <a asp-controller="Project" asp-action="Create" class="btn btn-outline-primary ms-1">新建项目</a>
+                <a asp-controller="Project" asp-action="Index" class="btn btn-primary"><i class="bi bi-folder"></i> 进入项目列表</a>
+                <a asp-controller="Project" asp-action="Create" class="btn btn-outline-primary ms-1"><i class="bi bi-plus-lg"></i> 新建项目</a>
             </div>
         </div>
     </div>
     <div class="col-md-4">
         <div class="card shadow-sm h-100">
             <div class="card-body text-center">
-                <h5 class="card-title">工作流程</h5>
+                <h5 class="card-title"><i class="bi bi-diagram-3"></i> 工作流程</h5>
                 <p class="card-text text-muted">
-                    1. 创建项目 → 2. 上传 .md/.txt 文档 → 3. 分段解析 → 4. LLM 生成 QA 对 → 5. 导出 JSONL
+                    <span class="badge rounded-circle bg-primary me-1" style="width: 26px; height: 26px; line-height: 18px;">1</span> 创建项目
+                    <span class="mx-1 text-muted">→</span>
+                    <span class="badge rounded-circle bg-primary me-1" style="width: 26px; height: 26px; line-height: 18px;">2</span> 上传文档
+                    <span class="mx-1 text-muted">→</span>
+                    <span class="badge rounded-circle bg-primary me-1" style="width: 26px; height: 26px; line-height: 18px;">3</span> 分段解析
+                    <span class="mx-1 text-muted">→</span>
+                    <span class="badge rounded-circle bg-primary me-1" style="width: 26px; height: 26px; line-height: 18px;">4</span> LLM 生成 QA 对
+                    <span class="mx-1 text-muted">→</span>
+                    <span class="badge rounded-circle bg-primary me-1" style="width: 26px; height: 26px; line-height: 18px;">5</span> 导出 JSONL
                 </p>
             </div>
         </div>

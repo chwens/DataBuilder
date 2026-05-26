@@ -19,7 +19,7 @@ public class QAController : Controller
     }
 
     // GET /QA/Preview/{documentId}
-    public async Task<IActionResult> Preview(int documentId)
+    public async Task<IActionResult> Preview(int documentId, string? filterType = null)
     {
         var document = await _db.Documents
             .Include(d => d.Project)
@@ -28,9 +28,14 @@ public class QAController : Controller
         if (document == null)
             return NotFound();
 
-        var qaPairs = await _db.QAPairs
+        var query = _db.QAPairs
             .Include(q => q.Chunk)
-            .Where(q => q.Chunk!.DocumentId == documentId)
+            .Where(q => q.Chunk!.DocumentId == documentId);
+
+        if (!string.IsNullOrEmpty(filterType))
+            query = query.Where(q => q.Type == filterType);
+
+        var qaPairs = await query
             .OrderBy(q => q.Id)
             .ToListAsync();
 
@@ -39,10 +44,59 @@ public class QAController : Controller
             Document = document,
             QAPairs = qaPairs,
             QaType = "Factoid",
-            CountPerChunk = 3
+            CountPerChunk = 3,
+            FilterType = filterType,
+            TypeList = new List<string> { "Factoid", "Reasoning", "Summary" },
+            TotalCount = qaPairs.Count,
+            AnsweredCount = qaPairs.Count(q => q.Answered)
         };
 
         return View(vm);
+    }
+
+    // GET /QA/ProjectPreview/{projectId}
+    public async Task<IActionResult> ProjectPreview(int projectId, string? filterType = null)
+    {
+        var project = await _db.Projects
+            .Include(p => p.Documents)
+            .FirstOrDefaultAsync(p => p.Id == projectId);
+
+        if (project == null)
+            return NotFound();
+
+        var documentIds = project.Documents.Select(d => d.Id).ToList();
+
+        var query = _db.QAPairs
+            .Include(q => q.Chunk)
+            .Where(q => documentIds.Contains(q.Chunk!.DocumentId));
+
+        if (!string.IsNullOrEmpty(filterType))
+            query = query.Where(q => q.Type == filterType);
+
+        var qaPairs = await query
+            .OrderBy(q => q.Id)
+            .ToListAsync();
+
+        // 取第一个文档作为 ViewModel 的 Document 上下文
+        var firstDocument = project.Documents.OrderBy(d => d.Id).FirstOrDefault()
+            ?? new Document { Id = 0, FileName = project.Name };
+
+        var vm = new QAPreviewViewModel
+        {
+            Document = firstDocument,
+            QAPairs = qaPairs,
+            QaType = "Factoid",
+            CountPerChunk = 3,
+            FilterType = filterType,
+            TypeList = new List<string> { "Factoid", "Reasoning", "Summary" },
+            TotalCount = qaPairs.Count,
+            AnsweredCount = qaPairs.Count(q => q.Answered)
+        };
+
+        ViewData["ProjectId"] = projectId;
+        ViewData["IsProjectView"] = true;
+
+        return View("Preview", vm);
     }
 
     // POST /QA/GenerateQuestions

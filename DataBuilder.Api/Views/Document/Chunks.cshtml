@@ -124,14 +124,14 @@
            asp-action="Detail"
            asp-route-id="@Model.Document.ProjectId"
            class="btn btn-outline-secondary">
-            返回项目
+            <i class="bi bi-arrow-left"></i> 返回项目
         </a>
 
         @if (Model.Chunks.Count > 0)
         {
             <a asp-controller="QA" asp-action="Preview" asp-route-documentId="@Model.Document.Id"
                class="btn btn-success">
-                QA 问答管理
+                <i class="bi bi-chat-square-text"></i> QA 问答管理
             </a>
             <form asp-action="Parse" asp-route-id="@Model.Document.Id" method="post" class="d-inline">
                 <input type="hidden" name="strategy" value="@parseStrategy" />
@@ -145,7 +145,7 @@
         <form asp-action="Delete" asp-route-id="@Model.Document.Id" method="post" class="d-inline ms-auto"
               onsubmit="return confirm(@Json.Serialize($"确定要删除文档「{Model.Document.FileName}」吗？此操作不可撤销，所有分段和生成的问答对将一并删除。"));">
             <button type="submit" class="btn btn-outline-danger">
-                删除文档
+                <i class="bi bi-trash"></i> 删除文档
             </button>
         </form>
     </div>

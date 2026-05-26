@@ -1,31 +1,150 @@
-html {
-  font-size: 14px;
+/* ===== 根变量 ===== */
+:root {
+    --sidebar-width: 220px;
+    --sidebar-bg: #1e293b;
+    --sidebar-hover: #334155;
+    --sidebar-active: #0f172a;
+    --sidebar-text: #cbd5e1;
+    --sidebar-text-active: #ffffff;
 }
 
-@media (min-width: 768px) {
-  html {
-    font-size: 16px;
-  }
+/* ===== 基础排版 ===== */
+html { font-size: 14px; }
+@media (min-width: 768px) { html { font-size: 16px; } }
+body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+
+/* ===== App 布局容器 ===== */
+.app-container { display: flex; min-height: 100vh; }
+
+/* ===== 侧边栏 ===== */
+.sidebar {
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-width);
+    background: var(--sidebar-bg);
+    color: var(--sidebar-text);
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 1000;
+}
+.sidebar-header {
+    padding: 1.25rem 1rem;
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--sidebar-text-active);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.sidebar-header i { font-size: 1.4rem; }
+.sidebar-nav {
+    flex: 1;
+    padding: 0.75rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+.sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.65rem 1.25rem;
+    color: var(--sidebar-text);
+    text-decoration: none;
+    font-size: 0.925rem;
+    border-left: 3px solid transparent;
+    transition: all 0.15s ease;
+}
+.sidebar-link:hover {
+    background: var(--sidebar-hover);
+    color: var(--sidebar-text-active);
+}
+.sidebar-link.active {
+    background: var(--sidebar-active);
+    color: var(--sidebar-text-active);
+    border-left-color: #3b82f6;
+}
+.sidebar-link i { font-size: 1.1rem; width: 1.25rem; text-align: center; }
+
+/* ===== 主内容区 ===== */
+.main-content {
+    flex: 1;
+    margin-left: var(--sidebar-width);
+    padding: 1.5rem;
+    background: #f8fafc;
+    min-height: 100vh;
 }
 
+/* ===== 页脚 ===== */
+.footer { color: #94a3b8; }
+
+/* ===== 链接 ===== */
+a { color: #2563eb; }
+a:hover { color: #1d4ed8; }
+
+/* ===== 按钮增强 ===== */
+.btn-primary { color: #fff; background-color: #2563eb; border-color: #2563eb; }
+.btn-primary:hover { background-color: #1d4ed8; border-color: #1d4ed8; }
+.btn-outline-primary { color: #2563eb; border-color: #2563eb; }
+.btn-outline-primary:hover { background-color: #2563eb; color: #fff; }
+
+/* ===== 卡片 ===== */
+.card {
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.card-header {
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    font-weight: 600;
+}
+
+/* ===== 表格美化 ===== */
+.table {
+    --bs-table-hover-bg: #f1f5f9;
+    font-size: 0.925rem;
+}
+.table thead th {
+    background: #f1f5f9;
+    border-bottom: 2px solid #e2e8f0;
+    font-weight: 600;
+    color: #475569;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+.table tbody td { vertical-align: middle; }
+.table tr:hover { cursor: default; }
+
+/* ===== Badge 标签 ===== */
+.badge { font-weight: 500; padding: 0.35em 0.65em; border-radius: 0.375rem; }
+
+/* ===== 面包屑 ===== */
+.breadcrumb { font-size: 0.875rem; }
+
+/* ===== Alert 优化 ===== */
+.alert { border-radius: 0.5rem; border: none; }
+
+/* ===== 表单增强 ===== */
+.form-control:focus, .form-select:focus {
+    border-color: #93c5fd;
+    box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.15);
+}
+
+/* ===== Focus 环 ===== */
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+    box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
 }
 
-html {
-  position: relative;
-  min-height: 100%;
-}
-
-body {
-  margin-bottom: 60px;
-}
-
+/* ===== Form floating 兼容 ===== */
 .form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
-  color: var(--bs-secondary-color);
-  text-align: end;
+    color: var(--bs-secondary-color); text-align: end;
 }
-
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
-  text-align: start;
+    text-align: start;
 }
