@@ -1,0 +1,163 @@
+@model QAPreviewViewModel
+@{
+    ViewData["Title"] = "问答对管理 - " + Model.Document.FileName;
+}
+
+<div class="container-fluid">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">首页</a></li>
+            <li class="breadcrumb-item active">@Model.Document.FileName</li>
+        </ol>
+    </nav>
+
+    @if (TempData["Message"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @TempData["Message"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">文档信息</h5>
+            <span class="badge bg-info">@Model.Document.Status</span>
+        </div>
+        <div class="card-body">
+            <p><strong>文件名：</strong>@Model.Document.FileName</p>
+            <p><strong>创建时间：</strong>@Model.Document.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</p>
+        </div>
+    </div>
+
+    @if (!Model.QAPairs.Any())
+    {
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">生成问题</h5>
+            </div>
+            <div class="card-body">
+                <form asp-action="GenerateQuestions" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="documentId" value="@Model.Document.Id" />
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label for="qaType" class="form-label">问题类型</label>
+                            <select name="qaType" id="qaType" class="form-select">
+                                <option value="Factoid">Factoid - 事实型</option>
+                                <option value="Reasoning">Reasoning - 推理型</option>
+                                <option value="Summary">Summary - 总结型</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="countPerChunk" class="form-label">每片段问题数</label>
+                            <select name="countPerChunk" id="countPerChunk" class="form-select">
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3" selected>3</option>
+                                <option value="5">5</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary w-100">开始生成问题</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    }
+
+    @if (Model.QAPairs.Any())
+    {
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">问题列表（共 @Model.QAPairs.Count 条）</h5>
+                <div>
+                    @if (Model.QAPairs.Any(q => !q.Answered))
+                    {
+                        <form asp-action="GenerateAnswers" method="post" class="d-inline" onsubmit="return confirm('确认要为所有待回答问题生成答案吗？')">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="documentId" value="@Model.Document.Id" />
+                            <button type="submit" class="btn btn-success">生成全部答案</button>
+                        </form>
+                    }
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 60px;">序号</th>
+                                <th>问题</th>
+                                <th>答案</th>
+                                <th style="width: 100px;">状态</th>
+                                <th style="width: 180px;">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{
+                                int index = 1;
+                            }
+                            @foreach (var qa in Model.QAPairs)
+                            {
+                                <tr>
+                                    <td>@(index++)</td>
+                                    <td>
+                                        @if (qa.Instruction.Length > 100)
+                                        {
+                                            <span title="@qa.Instruction">@qa.Instruction.Substring(0, 100)...</span>
+                                        }
+                                        else
+                                        {
+                                            @qa.Instruction
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (qa.Answered)
+                                        {
+                                            if (qa.Output.Length > 100)
+                                            {
+                                                <span title="@qa.Output">@qa.Output.Substring(0, 100)...</span>
+                                            }
+                                            else
+                                            {
+                                                @qa.Output
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">— 待生成 —</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (qa.Answered)
+                                        {
+                                            <span class="badge bg-success">已回答</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark">待生成</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <a asp-action="EditQuestion" asp-route-id="@qa.Id" class="btn btn-sm btn-outline-primary" title="编辑问题">编辑问题</a>
+                                        @if (qa.Answered)
+                                        {
+                                            <a asp-action="EditAnswer" asp-route-id="@qa.Id" class="btn btn-sm btn-outline-secondary" title="编辑答案">编辑答案</a>
+                                        }
+                                        <form asp-action="Delete" method="post" class="d-inline" onsubmit="return confirm('确认要删除这条问答对吗？')">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@qa.Id" />
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">删除</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+</div>

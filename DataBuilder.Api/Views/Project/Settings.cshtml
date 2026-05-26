@@ -1,0 +1,34 @@
+@model ProjectSettingsViewModel
+@{
+    ViewData["Title"] = $"Prompt 设置 - {Model.Project.Name}";
+}
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a asp-action="Index">项目列表</a></li>
+        <li class="breadcrumb-item"><a asp-action="Detail" asp-route-id="@Model.Project.Id">@Model.Project.Name</a></li>
+        <li class="breadcrumb-item active">Prompt 设置</li>
+    </ol>
+</nav>
+
+<h2>Prompt 设置</h2>
+<p class="text-muted">自定义 LLM 生成问答对时使用的 System Prompt。留空则使用默认模板。</p>
+
+<form asp-action="UpdatePrompt" asp-route-id="@Model.Project.Id" method="post">
+    <div class="mb-3">
+        <label for="questionPrompt" class="form-label fw-bold">问题生成 Prompt</label>
+        <textarea id="questionPrompt" name="questionPrompt" class="form-control" rows="6"
+                  placeholder="留空则使用默认模板">@Model.Project.QuestionPrompt</textarea>
+        <div class="form-text">用于指导 LLM 根据文档段落生成 instruction-input-output 中的 instruction 和 input。</div>
+    </div>
+
+    <div class="mb-3">
+        <label for="answerPrompt" class="form-label fw-bold">答案生成 Prompt</label>
+        <textarea id="answerPrompt" name="answerPrompt" class="form-control" rows="6"
+                  placeholder="留空则使用默认模板">@Model.Project.AnswerPrompt</textarea>
+        <div class="form-text">用于指导 LLM 根据 instruction 和文档段落生成对应的 output。</div>
+    </div>
+
+    <button type="submit" class="btn btn-primary">保存设置</button>
+    <a asp-action="Detail" asp-route-id="@Model.Project.Id" class="btn btn-secondary">返回</a>
+</form>

@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="DataBuilder.Api/DataBuilder.Api.csproj" />
+  <Project Path="DataBuilder.Core/DataBuilder.Core.csproj" />
+</Solution>

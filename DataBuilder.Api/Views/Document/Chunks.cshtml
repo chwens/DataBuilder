@@ -1,0 +1,152 @@
+@model DocumentChunksViewModel
+@{
+    ViewData["Title"] = $"分段结果 - {Model.Document.FileName}";
+    var parseStrategy = ViewData["ParseStrategy"] as string ?? "Heading";
+}
+
+<div class="container">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">首页</a></li>
+            <li class="breadcrumb-item"><a asp-controller="Project" asp-action="Detail" asp-route-id="@Model.Document.ProjectId">项目</a></li>
+            <li class="breadcrumb-item active">@Model.Document.FileName</li>
+        </ol>
+    </nav>
+
+    @if (TempData["SuccessMessage"] is string msg)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @msg
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- 文档信息 -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h5 class="card-title mb-1">@Model.Document.FileName</h5>
+                    <p class="card-text text-muted mb-0">
+                        <small>上传时间：@Model.Document.CreatedAt.ToString("yyyy-MM-dd HH:mm")</small>
+                    </p>
+                </div>
+                <span class="badge @(Model.Document.Status switch
+                {
+                    DocumentStatus.Parsed => "bg-success",
+                    DocumentStatus.Parsing => "bg-warning text-dark",
+                    DocumentStatus.Uploaded => "bg-info",
+                    _ => "bg-secondary"
+                }) fs-6">
+                    @Model.Document.Status
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 未解析时的操作区 -->
+    @if (Model.Chunks.Count == 0 && Model.Document.Status != DocumentStatus.Parsing)
+    {
+        <div class="card shadow-sm mb-4 border-info">
+            <div class="card-body text-center py-4">
+                <h5 class="text-muted mb-3">该文档尚未解析</h5>
+                <p class="text-muted">请选择分段策略后点击"开始解析"，系统将把文档拆分为多个片段。</p>
+
+                <form asp-action="Parse" asp-route-id="@Model.Document.Id" method="post" class="d-inline-block">
+                    <div class="input-group mb-3">
+                        <label class="input-group-text" for="strategy">分段策略</label>
+                        <select name="strategy" id="strategy" class="form-select">
+                            <option value="Heading" selected="@(parseStrategy == "Heading")">按标题分段</option>
+                            <option value="Paragraph" selected="@(parseStrategy == "Paragraph")">按段落分段</option>
+                            <option value="FixedLength" selected="@(parseStrategy == "FixedLength")">固定长度分段（2000字）</option>
+                        </select>
+                    </div>
+                    <input type="hidden" name="chunkSize" value="2000" />
+                    <button type="submit" class="btn btn-success btn-lg">
+                        开始解析
+                    </button>
+                </form>
+            </div>
+        </div>
+    }
+
+    <!-- 解析中 -->
+    @if (Model.Document.Status == DocumentStatus.Parsing)
+    {
+        <div class="alert alert-warning d-flex align-items-center" role="alert">
+            <span class="me-2">&#x23F3;</span>
+            <div>文档正在解析中，请稍后刷新页面查看结果。</div>
+        </div>
+    }
+
+    <!-- 分段结果列表 -->
+    @if (Model.Chunks.Count > 0)
+    {
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="mb-0">分段列表 <span class="badge bg-primary rounded-pill">@Model.Chunks.Count</span></h4>
+            <small class="text-muted">总字数：@Model.Chunks.Sum(c => c.TextContent.Length).ToString("N0")</small>
+        </div>
+
+        @foreach (var chunk in Model.Chunks)
+        {
+            var preview = chunk.TextContent.Length > 200
+                ? chunk.TextContent[..200] + "..."
+                : chunk.TextContent;
+
+            <div class="card shadow-sm mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center py-2">
+                    <span>
+                        <strong>分段 #@chunk.Sequence</strong>
+                        <span class="badge bg-secondary ms-2">
+                            @(chunk.Strategy switch
+                            {
+                                "Heading" => "按标题",
+                                "Paragraph" => "按段落",
+                                "FixedLength" => "固定长度",
+                                _ => chunk.Strategy
+                            })
+                        </span>
+                    </span>
+                    <small class="text-muted">@chunk.TextContent.Length.ToString("N0") 字</small>
+                </div>
+                <div class="card-body py-2">
+                    <p class="card-text text-muted" style="white-space: pre-wrap; font-size: 0.9rem;">
+                        @preview
+                    </p>
+                </div>
+            </div>
+        }
+    }
+
+    <!-- 底部操作 -->
+    <div class="d-flex gap-2 mt-4 mb-5">
+        <a asp-controller="Project"
+           asp-action="Detail"
+           asp-route-id="@Model.Document.ProjectId"
+           class="btn btn-outline-secondary">
+            返回项目
+        </a>
+
+        @if (Model.Chunks.Count > 0)
+        {
+            <a asp-controller="QA" asp-action="Preview" asp-route-documentId="@Model.Document.Id"
+               class="btn btn-success">
+                QA 问答管理
+            </a>
+            <form asp-action="Parse" asp-route-id="@Model.Document.Id" method="post" class="d-inline">
+                <input type="hidden" name="strategy" value="@parseStrategy" />
+                <input type="hidden" name="chunkSize" value="2000" />
+                <button type="submit" class="btn btn-outline-primary">
+                    重新解析
+                </button>
+            </form>
+        }
+
+        <form asp-action="Delete" asp-route-id="@Model.Document.Id" method="post" class="d-inline ms-auto"
+              onsubmit="return confirm(@Json.Serialize($"确定要删除文档「{Model.Document.FileName}」吗？此操作不可撤销，所有分段和生成的问答对将一并删除。"));">
+            <button type="submit" class="btn btn-outline-danger">
+                删除文档
+            </button>
+        </form>
+    </div>
+</div>

@@ -1,0 +1,82 @@
+@model DocumentUploadViewModel
+@{
+    ViewData["Title"] = "上传文档";
+}
+
+<div class="container">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">首页</a></li>
+            <li class="breadcrumb-item"><a asp-controller="Project" asp-action="Detail" asp-route-id="@Model.ProjectId">@Model.ProjectName</a></li>
+            <li class="breadcrumb-item active">上传文档</li>
+        </ol>
+    </nav>
+
+    <h2 class="mb-4">上传文档</h2>
+
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <strong>项目：</strong>@Model.ProjectName
+        </div>
+        <div class="card-body">
+            <form asp-action="Upload" method="post" enctype="multipart/form-data">
+                <input type="hidden" name="projectId" value="@Model.ProjectId" />
+
+                @if (!ViewData.ModelState.IsValid)
+                {
+                    <div asp-validation-summary="All" class="text-danger mb-3"></div>
+                }
+
+                <div class="mb-4">
+                    <label for="file" class="form-label fw-bold">选择文档</label>
+                    <input type="file"
+                           name="file"
+                           id="file"
+                           class="form-control"
+                           accept=".md,.txt"
+                           required
+                           onchange="validateFileSize(this)" />
+                    <div class="form-text">
+                        仅支持 <strong>.md</strong>（Markdown）和 <strong>.txt</strong>（纯文本）文件，最大 10MB。
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label for="strategy" class="form-label fw-bold">分段策略</label>
+                    <select name="strategy" id="strategy" class="form-select">
+                        <option value="Heading">按标题分段（推荐用于 Markdown）</option>
+                        <option value="Paragraph">按段落分段</option>
+                        <option value="FixedLength">固定长度分段（每段 2000 字）</option>
+                    </select>
+                    <div class="form-text">
+                        分段策略决定文档如何被拆分为可供 LLM 处理的片段。
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-upload"></i> 上传文档
+                    </button>
+                    <a asp-controller="Project"
+                       asp-action="Detail"
+                       asp-route-id="@Model.ProjectId"
+                       class="btn btn-outline-secondary">
+                        返回项目
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function validateFileSize(input) {
+            const maxSize = 10 * 1024 * 1024; // 10MB
+            if (input.files.length > 0 && input.files[0].size > maxSize) {
+                alert('文件大小超过 10MB 限制，请选择更小的文件。');
+                input.value = '';
+            }
+        }
+    </script>
+}

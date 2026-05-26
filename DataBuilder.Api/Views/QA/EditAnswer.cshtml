@@ -1,0 +1,44 @@
+@model QAEditViewModel
+@{
+    ViewData["Title"] = "编辑答案";
+}
+
+<div class="container-fluid">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">首页</a></li>
+            <li class="breadcrumb-item active">编辑答案</li>
+        </ol>
+    </nav>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">对应问题</h5>
+        </div>
+        <div class="card-body bg-light">
+            <p class="mb-0">@Model.QAPair.Instruction</p>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">编辑答案 #@Model.QAPair.Id</h5>
+        </div>
+        <div class="card-body">
+            <form asp-action="EditAnswer" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="@Model.QAPair.Id" />
+
+                <div class="mb-3">
+                    <label for="output" class="form-label fw-bold">答案文本</label>
+                    <textarea id="output" name="output" rows="8" class="form-control">@Model.QAPair.Output</textarea>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">保存</button>
+                    <a href="@(Model.ReturnUrl ?? Url.Action("Preview", "QA", new { documentId = Model.QAPair.Chunk?.DocumentId ?? 0 }))" class="btn btn-secondary">返回</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
