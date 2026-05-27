@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using DataBuilder.Core.Entities;
 
 namespace DataBuilder.Api.Models;
@@ -9,6 +10,8 @@ public class ProjectListViewModel
 
 public class ProjectCreateViewModel
 {
+    [Required(ErrorMessage = "项目名称不能为空")]
+    [MaxLength(200)]
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
 }

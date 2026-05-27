@@ -165,6 +165,37 @@ public class DocumentController : Controller
         return View(vm);
     }
 
+    // POST: /Document/BatchDelete
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> BatchDelete(string ids)
+    {
+        if (string.IsNullOrWhiteSpace(ids))
+            return BadRequest("未选择任何文档。");
+
+        var idList = ids.Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(s => int.TryParse(s.Trim(), out var id) ? id : (int?)null)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .ToList();
+
+        if (idList.Count == 0)
+            return BadRequest("无效的文档 ID。");
+
+        var docs = await _db.Documents.Where(d => idList.Contains(d.Id)).ToListAsync();
+        if (docs.Count == 0)
+            return NotFound();
+
+        var projectId = docs[0].ProjectId;
+        _db.Documents.RemoveRange(docs);
+        await _db.SaveChangesAsync();
+
+        _logger.LogInformation("批量删除文档: Ids={Ids}, 数量={Count}", ids, docs.Count);
+
+        TempData["SuccessMessage"] = $"已删除 {docs.Count} 篇文档。";
+        return RedirectToAction("Detail", "Project", new { id = projectId });
+    }
+
     // POST: /Document/Delete/{id}
     [HttpPost]
     [ValidateAntiForgeryToken]

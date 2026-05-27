@@ -5,21 +5,6 @@
 }
 
 <div class="container-fluid">
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">首页</a></li>
-            @if (ViewData["IsProjectView"] is true)
-            {
-                <li class="breadcrumb-item"><a asp-controller="Project" asp-action="Detail" asp-route-id="@ViewData["ProjectId"]">项目</a></li>
-                <li class="breadcrumb-item active">所有问答</li>
-            }
-            else
-            {
-                <li class="breadcrumb-item"><a asp-controller="Project" asp-action="Detail" asp-route-id="@Model.Document.ProjectId">项目</a></li>
-                <li class="breadcrumb-item active">@Model.Document.FileName</li>
-            }
-        </ol>
-    </nav>
 
     @if (TempData["Message"] != null)
     {

@@ -5,18 +5,19 @@
 }
 
 <div class="container">
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">首页</a></li>
-            <li class="breadcrumb-item"><a asp-controller="Project" asp-action="Detail" asp-route-id="@Model.Document.ProjectId">项目</a></li>
-            <li class="breadcrumb-item active">@Model.Document.FileName</li>
-        </ol>
-    </nav>
 
     @if (TempData["SuccessMessage"] is string msg)
     {
         <div class="alert alert-success alert-dismissible fade show" role="alert">
             @msg
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (TempData["ErrorMessage"] is string errMsg)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle"></i> @errMsg
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     }

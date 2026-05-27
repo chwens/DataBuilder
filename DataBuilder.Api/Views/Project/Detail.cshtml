@@ -3,101 +3,184 @@
     ViewData["Title"] = Model.Project.Name;
 }
 
-<nav aria-label="breadcrumb">
-    <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a asp-action="Index">项目列表</a></li>
-        <li class="breadcrumb-item active">@Model.Project.Name</li>
-    </ol>
-</nav>
-
-<div class="card mb-4">
-    <div class="card-body">
-        <h3 class="card-title">@Model.Project.Name</h3>
-        @if (!string.IsNullOrEmpty(Model.Project.Description))
-        {
-            <p class="card-text">@Model.Project.Description</p>
-        }
-        <p class="text-muted small">
-            创建时间: @Model.Project.CreatedAt.ToString("yyyy-MM-dd HH:mm") |
-            更新时间: @Model.Project.UpdatedAt.ToString("yyyy-MM-dd HH:mm")
-        </p>
-        <div class="d-flex gap-2">
-            <a asp-action="Settings" asp-route-id="@Model.Project.Id" class="btn btn-outline-secondary">Prompt 设置</a>
+<!-- 项目信息头卡片 -->
+<div class="project-header-card">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div class="flex-grow-1">
+            <h3 class="project-header-title">@Model.Project.Name</h3>
+            @if (!string.IsNullOrEmpty(Model.Project.Description))
+            {
+                <p class="project-header-desc">@Model.Project.Description</p>
+            }
+            <div class="project-header-meta">
+                <span><i class="bi bi-calendar-plus"></i> 创建: @Model.Project.CreatedAt.ToString("yyyy-MM-dd HH:mm")</span>
+                <span><i class="bi bi-pencil-square"></i> 更新: @Model.Project.UpdatedAt.ToString("yyyy-MM-dd HH:mm")</span>
+            </div>
+        </div>
+        <div class="d-flex gap-2 flex-shrink-0">
+            <a asp-action="Settings" asp-route-id="@Model.Project.Id" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-gear"></i> Prompt 设置
+            </a>
             <form asp-action="Delete" asp-route-id="@Model.Project.Id" method="post"
                   onsubmit="return confirm('确定删除该项目及其所有数据吗？此操作不可撤销。');">
-                <button type="submit" class="btn btn-outline-danger">删除项目</button>
+                <button type="submit" class="btn btn-outline-danger btn-sm">
+                    <i class="bi bi-trash3"></i> 删除项目
+                </button>
             </form>
         </div>
     </div>
 </div>
 
-<h4>文档列表</h4>
+<!-- 文档区域：标题 + 上传按钮 -->
+<div class="section-header">
+    <h4 class="section-header-title">
+        <input type="checkbox" class="form-check-input me-2" id="selectAllDocs" style="margin:0;width:1rem;height:1rem;cursor:pointer">
+        <i class="bi bi-file-earmark-text"></i> 文档列表
+        @if (Model.Documents.Any())
+        {
+            <span class="section-header-count">@Model.Documents.Count()</span>
+        }
+    </h4>
+    <div class="d-flex gap-2">
+        <button type="button" id="btnBatchDelete" class="btn btn-outline-danger btn-sm d-none" onclick="batchDeleteDocs()">
+            <i class="bi bi-trash3"></i> 批量删除
+        </button>
+        <a asp-controller="Document" asp-action="Upload" asp-route-projectId="@Model.Project.Id" class="btn btn-primary">
+            <i class="bi bi-cloud-upload"></i> 上传文档
+        </a>
+    </div>
+</div>
 
 @if (!Model.Documents.Any())
 {
-    <div class="alert alert-info">
-        暂无文档。
+    <div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h3>暂无文档</h3>
+        <p class="text-muted">点击"上传文档"按钮添加 .md 或 .txt 文件，开始构建数据集。</p>
+        <a asp-controller="Document" asp-action="Upload" asp-route-projectId="@Model.Project.Id" class="btn btn-primary mt-3">
+            <i class="bi bi-cloud-upload"></i> 上传第一篇文档
+        </a>
     </div>
 }
 else
 {
-    <table class="table table-striped table-hover">
-        <thead class="table-light">
-            <tr>
-                <th>文件名</th>
-                <th>状态</th>
-                <th>上传时间</th>
-                <th>操作</th>
-            </tr>
-        </thead>
-        <tbody>
+    <div class="doc-card-list">
         @foreach (var doc in Model.Documents)
         {
-            <tr>
-                <td>
-                    <a asp-controller="Document" asp-action="Chunks" asp-route-id="@doc.Id">
-                        @doc.FileName
-                    </a>
-                </td>
-                <td>
-                    @switch (doc.Status)
-                    {
-                        case DocumentStatus.Uploaded:
-                            <span class="badge bg-secondary">已上传</span>
-                            break;
-                        case DocumentStatus.Parsing:
-                            <span class="badge bg-warning text-dark">解析中</span>
-                            break;
-                        case DocumentStatus.Parsed:
-                            <span class="badge bg-info">已解析</span>
-                            break;
-                        case DocumentStatus.Generating:
-                            <span class="badge bg-warning text-dark">生成中</span>
-                            break;
-                        case DocumentStatus.Done:
-                            <span class="badge bg-success">已生成</span>
-                            break;
-                        default:
-                            <span class="badge bg-light text-dark">@doc.Status</span>
-                            break;
-                    }
-                </td>
-                <td>@doc.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
-                <td>
-                    <a asp-controller="Document" asp-action="Chunks" asp-route-id="@doc.Id"
-                       class="btn btn-sm btn-outline-primary"><i class="bi bi-list-ol"></i> 分段</a>
-                    <a asp-controller="QA" asp-action="Preview" asp-route-documentId="@doc.Id"
-                       class="btn btn-sm btn-outline-success"><i class="bi bi-chat-square-text"></i> QA 管理</a>
-                </td>
-            </tr>
+            <div class="doc-card">
+                <div class="doc-card-body">
+                    <!-- 左侧：复选框 -->
+                    <div class="doc-card-check">
+                        <input type="checkbox" class="form-check-input doc-checkbox" value="@doc.Id">
+                    </div>
+                    <!-- 中间：文件名 + 状态 + 元信息 -->
+                    <div class="doc-card-info">
+                        <div class="doc-card-title-row">
+                            <a asp-controller="Document" asp-action="Chunks" asp-route-id="@doc.Id" class="doc-card-title">
+                                @doc.FileName
+                            </a>
+                            @switch (doc.Status)
+                            {
+                                case DocumentStatus.Uploaded:
+                                    <span class="badge bg-secondary bg-opacity-10 text-secondary doc-badge">已上传</span>
+                                    break;
+                                case DocumentStatus.Parsing:
+                                    <span class="badge bg-warning bg-opacity-10 text-warning doc-badge">解析中</span>
+                                    break;
+                                case DocumentStatus.Parsed:
+                                    <span class="badge bg-info bg-opacity-10 text-info doc-badge">已解析</span>
+                                    break;
+                                case DocumentStatus.Generating:
+                                    <span class="badge bg-warning bg-opacity-10 text-warning doc-badge">生成中</span>
+                                    break;
+                                case DocumentStatus.Done:
+                                    <span class="badge bg-success bg-opacity-10 text-success doc-badge">已生成</span>
+                                    break;
+                                default:
+                                    <span class="badge bg-light text-dark doc-badge">@doc.Status</span>
+                                    break;
+                            }
+                        </div>
+                        <div class="doc-card-meta">
+                            <span><i class="bi bi-clock"></i> 上传于 @doc.CreatedAt.ToString("yyyy-MM-dd HH:mm")</span>
+                        </div>
+                    </div>
+                    <!-- 右侧：操作按钮 -->
+                    <div class="doc-card-actions">
+                        <a asp-controller="Document" asp-action="Chunks" asp-route-id="@doc.Id"
+                           class="btn-icon-circle" title="分段管理" data-bs-toggle="tooltip">
+                            <i class="bi bi-list-ol"></i>
+                        </a>
+                        <a asp-controller="QA" asp-action="Preview" asp-route-documentId="@doc.Id"
+                           class="btn-icon-circle btn-icon-circle-primary" title="QA 管理" data-bs-toggle="tooltip">
+                            <i class="bi bi-chat-square-text"></i>
+                        </a>
+                        <form asp-controller="Document" asp-action="Delete" asp-route-id="@doc.Id" method="post"
+                              onsubmit="return confirm('确定删除该文档及其所有数据吗？');" class="d-inline">
+                            <button type="submit" class="btn-icon-circle btn-icon-circle-danger" title="删除文档" data-bs-toggle="tooltip">
+                                <i class="bi bi-trash3"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
         }
-        </tbody>
-    </table>
+    </div>
 }
 
-<div class="mt-3 d-flex gap-2">
-    <a asp-controller="Document" asp-action="Upload" asp-route-projectId="@Model.Project.Id" class="btn btn-primary"><i class="bi bi-upload"></i> 上传文档</a>
-    <a asp-controller="Export" asp-action="Download" asp-route-projectId="@Model.Project.Id" class="btn btn-success"><i class="bi bi-download"></i> 导出数据集</a>
+<!-- 底部操作 -->
+<div class="mt-4 d-flex gap-2">
+    <a asp-controller="Export" asp-action="Download" asp-route-projectId="@Model.Project.Id" class="btn btn-success">
+        <i class="bi bi-download"></i> 导出数据集
+    </a>
     <a asp-controller="QA" asp-action="ProjectPreview" asp-route-projectId="@Model.Project.Id"
-       class="btn btn-outline-primary"><i class="bi bi-eye"></i> 查看所有问答</a>
+       class="btn btn-outline-primary">
+        <i class="bi bi-eye"></i> 查看所有问答
+    </a>
 </div>
+
+@section Scripts {
+<script>
+    document.getElementById('selectAllDocs').addEventListener('change', function() {
+        var checkboxes = document.querySelectorAll('.doc-checkbox');
+        checkboxes.forEach(function(cb) { cb.checked = this.checked; }.bind(this));
+        toggleBatchButtons();
+    });
+
+    document.querySelectorAll('.doc-checkbox').forEach(function(cb) {
+        cb.addEventListener('change', toggleBatchButtons);
+    });
+
+    function toggleBatchButtons() {
+        var checkedCount = document.querySelectorAll('.doc-checkbox:checked').length;
+        var btnDelete = document.getElementById('btnBatchDelete');
+        if (checkedCount > 0) {
+            btnDelete.classList.remove('d-none');
+        } else {
+            btnDelete.classList.add('d-none');
+        }
+    }
+
+    function batchDeleteDocs() {
+        var checked = document.querySelectorAll('.doc-checkbox:checked');
+        if (checked.length === 0) return;
+        if (!confirm('确定要删除选中的 ' + checked.length + ' 篇文档吗？此操作不可撤销。')) return;
+        var ids = Array.from(checked).map(function(cb) { return cb.value; });
+        var form = document.createElement('form');
+        form.method = 'post';
+        form.action = '/Document/BatchDelete';
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'ids';
+        input.value = ids.join(',');
+        form.appendChild(input);
+        var token = document.createElement('input');
+        token.type = 'hidden';
+        token.name = '__RequestVerificationToken';
+        token.value = document.querySelector('input[name="__RequestVerificationToken"]').value;
+        form.appendChild(token);
+        document.body.appendChild(form);
+        form.submit();
+    }
+</script>
+}

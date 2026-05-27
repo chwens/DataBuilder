@@ -1,7 +1,6 @@
 @inject Microsoft.Extensions.Options.IOptions<DataBuilder.Api.Models.SiteOptions> SiteConfig
-
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -13,34 +12,27 @@
     <link rel="stylesheet" href="~/DataBuilder.Api.styles.css" asp-append-version="true" />
 </head>
 <body>
-    <div class="app-container">
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <i class="bi bi-database-fill-gear"></i>
-                @SiteConfig.Value.AppName
-            </div>
-            <nav class="sidebar-nav">
-                <a class="sidebar-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Home" ? "active" : "")"
-                   asp-controller="Home" asp-action="Index">
-                    <i class="bi bi-house-door"></i> 工作台
-                </a>
-                <a class="sidebar-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Project" ? "active" : "")"
-                   asp-controller="Project" asp-action="Index">
-                    <i class="bi bi-folder"></i> 项目管理
-                </a>
-            </nav>
-        </aside>
-
-        <div class="main-content">
-            <main>
-                @RenderBody()
-            </main>
-            <footer class="footer mt-4">
-                <div>
-                    &copy; 2026 - DataBuilder - Alpaca 数据集构建系统
-                </div>
-            </footer>
+    <nav class="navbar navbar-dark top-navbar fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" asp-controller="Home" asp-action="Index">
+                <span class="brand-icon">D</span> DataBuilder
+            </a>
+            <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Project" && ViewContext.RouteData.Values["Action"]?.ToString() == "Index" ? "active" : "")"
+               asp-controller="Project" asp-action="Index">
+                <i class="bi bi-folder2"></i> 项目管理
+            </a>
         </div>
+    </nav>
+
+    <div class="main-content">
+        <main>
+            @RenderBody()
+        </main>
+        <footer class="footer mt-4">
+            <div>
+                &copy; 2026 - DataBuilder - Alpaca 数据集构建系统
+            </div>
+        </footer>
     </div>
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>

@@ -3,36 +3,153 @@
     ViewData["Title"] = $"Prompt 设置 - {Model.Project.Name}";
 }
 
-<nav aria-label="breadcrumb">
-    <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a asp-action="Index">项目列表</a></li>
-        <li class="breadcrumb-item"><a asp-action="Detail" asp-route-id="@Model.Project.Id">@Model.Project.Name</a></li>
-        <li class="breadcrumb-item active">Prompt 设置</li>
-    </ol>
-</nav>
-
-<div class="card shadow-sm">
+<div class="card shadow-sm mb-4">
     <div class="card-body">
-        <h2>Prompt 设置</h2>
-        <p class="text-muted">自定义 LLM 生成问答对时使用的 System Prompt。留空则使用默认模板。</p>
-
-<form asp-action="UpdatePrompt" asp-route-id="@Model.Project.Id" method="post">
-    <div class="mb-3">
-        <label for="questionPrompt" class="form-label fw-bold">问题生成 Prompt</label>
-        <textarea id="questionPrompt" name="questionPrompt" class="form-control" rows="6"
-                  placeholder="留空则使用默认模板">@Model.Project.QuestionPrompt</textarea>
-        <div class="form-text">用于指导 LLM 根据文档段落生成 instruction-input-output 中的 instruction 和 input。</div>
+        <h2><i class="bi bi-gear"></i> Prompt 设置</h2>
+        <p class="text-muted mb-0">
+            查看系统默认 Prompt 模板，并可自定义覆盖。自定义 Prompt 为空时将使用默认模板。
+        </p>
     </div>
+</div>
 
-    <div class="mb-3">
-        <label for="answerPrompt" class="form-label fw-bold">答案生成 Prompt</label>
-        <textarea id="answerPrompt" name="answerPrompt" class="form-control" rows="6"
-                  placeholder="留空则使用默认模板">@Model.Project.AnswerPrompt</textarea>
-        <div class="form-text">用于指导 LLM 根据 instruction 和文档段落生成对应的 output。</div>
+@* ==================== Section 1: 默认模板 ==================== *@
+<div class="card shadow-sm mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-book"></i> 默认模板</h5>
+        <span class="text-muted" style="font-size:0.85rem;">系统内置的 Prompt 模板，仅在未设置自定义 Prompt 时生效</span>
     </div>
+    <div class="card-body">
+        <div class="accordion" id="defaultPromptAccordion">
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="headingQuestion">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                            data-bs-target="#collapseQuestion" aria-expanded="false" aria-controls="collapseQuestion">
+                        <i class="bi bi-question-circle me-2"></i> 问题生成 Prompt 默认模板
+                    </button>
+                </h2>
+                <div id="collapseQuestion" class="accordion-collapse collapse" aria-labelledby="headingQuestion"
+                     data-bs-parent="#defaultPromptAccordion">
+                    <div class="accordion-body p-0">
+                        <pre class="prompt-template"># Role: 文本问题生成专家
 
-    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> 保存设置</button>
-    <a asp-action="Detail" asp-route-id="@Model.Project.Id" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> 返回</a>
-</form>
+## Profile
+你是一名专业的文本分析与问题设计专家，能够从复杂文本中提炼关键信息并产出可用于模型微调的高质量问题集合。
+
+## Skills
+1. 精准理解原文内容，提取核心知识点
+2. 设计有明确答案指向的问题
+3. 控制问题难度多样性（简单/中等/困难）
+4. 严格遵守输出格式
+
+## Workflow
+1. 文本解析：仔细阅读全文，识别关键信息点和逻辑结构
+2. 问题设计：基于信息密度和重要性选择最佳提问切入点，问题类型为{qaType}
+3. 质量检查：确保每个问题都能从原文中找到答案，且表述清晰自包含
+
+## Constraints
+1. 严格依据原文内容，不得虚构原文不存在的信息
+2. 覆盖文本中不同主题和知识点
+3. 不要提问关于"文本本身"的元信息（如"这段文字讲了什么"）
+4. 不要使用"报告中提到""文章中说""文献指出"等引用性表述
+5. 问题应当自包含，脱离上下文仍可被理解
+6. 输出恰好 {count} 个问题
+7. 确保问题数量符合要求
+
+## OutputFormat
+严格输出 JSON 字符串数组，不要包含任何其他文字：
+```json
+["问题1", "问题2", "问题3"]
+```</pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="headingAnswer">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                            data-bs-target="#collapseAnswer" aria-expanded="false" aria-controls="collapseAnswer">
+                        <i class="bi bi-chat-square-text me-2"></i> 答案生成 Prompt 默认模板
+                    </button>
+                </h2>
+                <div id="collapseAnswer" class="accordion-collapse collapse" aria-labelledby="headingAnswer"
+                     data-bs-parent="#defaultPromptAccordion">
+                    <div class="accordion-body p-0">
+                        <pre class="prompt-template"># Role: 微调数据集生成专家
+
+## Profile
+你是一名专业的微调数据集生成专家，擅长从给定的参考内容中生成高质量、准确的答案。
+你对参考内容中的所有信息已内化为专业知识。
+
+## Skills
+1. 答案必须严格基于给定的参考内容
+2. 答案必须准确，不能胡编乱造
+3. 答案必须与问题紧密相关
+4. 答案必须符合逻辑，条理清晰
+
+## Workflow
+1. 深呼吸，逐步思考问题
+2. 分析参考内容，定位与问题相关的段落
+3. 提取关键信息并组织语言
+4. 生成准确、完整的答案
+5. 自检：确认答案中的所有事实都可在参考内容中找到依据
+
+## Constraints
+1. 答案必须基于给定的参考内容，不允许使用外部知识
+2. 答案应充分、详细、包含所有必要的信息，适合微调大模型训练使用
+3. 不得出现"参考""依据""文献中提到""根据原文"等引用性表述
+4. 直接给出答案内容，不要附加解释或元信息</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ==================== Section 2: 自定义 Prompt ==================== *@
+<div class="card shadow-sm">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-pencil-square"></i> 自定义 Prompt</h5>
+        <span class="text-muted" style="font-size:0.85rem;">如果填写，将覆盖上方的默认模板</span>
+    </div>
+    <div class="card-body">
+        <form asp-action="UpdatePrompt" asp-route-id="@Model.Project.Id" method="post">
+            @Html.AntiForgeryToken()
+
+            <div class="mb-4">
+                <label for="questionPrompt" class="form-label fw-bold">
+                    <i class="bi bi-question-circle"></i> 问题生成 Prompt
+                    <span class="text-muted fw-normal">（覆盖默认）</span>
+                </label>
+                <textarea id="questionPrompt" name="questionPrompt" class="form-control custom-prompt-textarea" rows="8"
+                          placeholder="留空则使用默认问题生成模板">@Model.Project.QuestionPrompt</textarea>
+                <div class="form-text">
+                    <i class="bi bi-info-circle"></i>
+                    用于指导 LLM 根据文档段落生成 instruction-input-output 中的 instruction 和 input。
+                    可使用 <code>{qaType}</code> 和 <code>{count}</code> 作为运行时占位符。
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label for="answerPrompt" class="form-label fw-bold">
+                    <i class="bi bi-chat-square-text"></i> 答案生成 Prompt
+                    <span class="text-muted fw-normal">（覆盖默认）</span>
+                </label>
+                <textarea id="answerPrompt" name="answerPrompt" class="form-control custom-prompt-textarea" rows="8"
+                          placeholder="留空则使用默认答案生成模板">@Model.Project.AnswerPrompt</textarea>
+                <div class="form-text">
+                    <i class="bi bi-info-circle"></i>
+                    用于指导 LLM 根据 instruction 和文档段落生成对应的 output。
+                </div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-lg"></i> 保存设置
+                </button>
+                <a asp-action="Detail" asp-route-id="@Model.Project.Id" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> 返回
+                </a>
+            </div>
+        </form>
     </div>
 </div>
