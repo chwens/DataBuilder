@@ -11,11 +11,13 @@ public class QAController : Controller
 {
     private readonly AppDbContext _db;
     private readonly ILLMService _llm;
+    private readonly ILogger<QAController> _logger;
 
-    public QAController(AppDbContext db, ILLMService llm)
+    public QAController(AppDbContext db, ILLMService llm, ILogger<QAController> logger)
     {
         _db = db;
         _llm = llm;
+        _logger = logger;
     }
 
     // GET /QA/Preview/{documentId}
@@ -154,6 +156,8 @@ public class QAController : Controller
         document.Status = DocumentStatus.Generating;
         await _db.SaveChangesAsync();
 
+        _logger.LogInformation("问题生成完成: DocumentId={DocumentId}, 类型={QaType}, 数量={Count}", documentId, qaType, newQaPairs.Count);
+
         TempData["Message"] = $"已为 {chunks.Count} 个文本片段生成问题。";
         return RedirectToAction(nameof(Preview), new { documentId });
     }
@@ -199,10 +203,14 @@ public class QAController : Controller
             document.Status = DocumentStatus.Done;
             await _db.SaveChangesAsync();
 
+            _logger.LogInformation("答案生成完成: DocumentId={DocumentId}, 成功={Completed}/{Total}", documentId, completed, qaPairs.Count);
+
             TempData["Message"] = $"已为 {qaPairs.Count} 个问题生成答案。";
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "答案生成中断: DocumentId={DocumentId}, 已完成={Completed}/{Total}", documentId, completed, qaPairs.Count);
+
             TempData["ErrorMessage"] = $"答案生成中断：已完成 {completed}/{qaPairs.Count}。错误：{ex.Message}";
         }
 
@@ -296,6 +304,8 @@ public class QAController : Controller
         var documentId = qaPair.Chunk!.DocumentId;
         _db.QAPairs.Remove(qaPair);
         await _db.SaveChangesAsync();
+
+        _logger.LogInformation("QA对已删除: Id={Id}", id);
 
         TempData["Message"] = "问答对已删除。";
         return RedirectToAction(nameof(Preview), new { documentId });

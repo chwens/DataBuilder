@@ -11,11 +11,13 @@ public class DocumentController : Controller
 {
     private readonly AppDbContext _db;
     private readonly IDocumentParser _parser;
+    private readonly ILogger<DocumentController> _logger;
 
-    public DocumentController(AppDbContext db, IDocumentParser parser)
+    public DocumentController(AppDbContext db, IDocumentParser parser, ILogger<DocumentController> logger)
     {
         _db = db;
         _parser = parser;
+        _logger = logger;
     }
 
     // GET: /Document/Upload/{projectId}
@@ -85,6 +87,8 @@ public class DocumentController : Controller
         _db.Documents.Add(doc);
         await _db.SaveChangesAsync();
 
+        _logger.LogInformation("文档上传: {FileName}, 项目Id={ProjectId}", doc.FileName, projectId);
+
         TempData["ParseStrategy"] = strategy;
         TempData["SuccessMessage"] = $"文档 \"{file.FileName}\" 上传成功。";
 
@@ -118,12 +122,17 @@ public class DocumentController : Controller
             doc.Status = DocumentStatus.Parsed;
             await _db.SaveChangesAsync();
 
+            _logger.LogInformation("文档解析完成: Id={DocumentId}, 分段数={Count}", id, chunks.Count);
+
             TempData["SuccessMessage"] = $"文档解析完成，共生成 {chunks.Count} 个分段。";
         }
         catch (Exception ex)
         {
             doc.Status = DocumentStatus.Uploaded;
             await _db.SaveChangesAsync();
+
+            _logger.LogError(ex, "文档解析失败: Id={DocumentId}", id);
+
             TempData["ErrorMessage"] = $"解析失败：{ex.Message}";
         }
 
@@ -170,6 +179,8 @@ public class DocumentController : Controller
         var projectId = doc.ProjectId;
         _db.Documents.Remove(doc);
         await _db.SaveChangesAsync();
+
+        _logger.LogInformation("文档已删除: Id={DocumentId}", id);
 
         TempData["SuccessMessage"] = $"文档 \"{doc.FileName}\" 已删除。";
 

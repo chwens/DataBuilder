@@ -10,11 +10,13 @@ public class ExportController : Controller
 {
     private readonly AppDbContext _db;
     private readonly IAlpacaExporter _exporter;
+    private readonly ILogger<ExportController> _logger;
 
-    public ExportController(AppDbContext db, IAlpacaExporter exporter)
+    public ExportController(AppDbContext db, IAlpacaExporter exporter, ILogger<ExportController> logger)
     {
         _db = db;
         _exporter = exporter;
+        _logger = logger;
     }
 
     // GET /Export/Download/{projectId}
@@ -47,6 +49,8 @@ public class ExportController : Controller
         var safeName = Regex.Replace(project.Name, @"[<>:""/\\|?*]", "_");
         var fileName = $"{safeName}_alpaca_{DateTime.UtcNow:yyyyMMdd_HHmmss}.jsonl";
 
+        _logger.LogInformation("导出数据集: ProjectId={ProjectId}, QA数={Count}", projectId, qaPairs.Count);
+
         return File(bytes, "application/x-ndjson", fileName);
     }
 
@@ -64,6 +68,8 @@ public class ExportController : Controller
 
         var bytes = await _exporter.ExportAsync(qaPairs);
         var fileName = $"alpaca_selected_{DateTime.UtcNow:yyyyMMdd_HHmmss}.jsonl";
+
+        _logger.LogInformation("导出选中QA: 数量={Count}", qaPairs.Count);
 
         return File(bytes, "application/x-ndjson", fileName);
     }

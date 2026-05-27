@@ -1,7 +1,9 @@
+using DataBuilder.Api.Models;
 using DataBuilder.Core;
 using DataBuilder.Core.Interfaces;
 using DataBuilder.Core.Services;
 using Microsoft.EntityFrameworkCore;
+using NLog.Extensions.Logging;
 
 // 加载 .env 文件中的环境变量（必须在 CreateBuilder 之前，否则 Configuration 无法读取）
 var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
@@ -11,6 +13,10 @@ if (string.IsNullOrEmpty(env) || env == "Development")
 }
 
 var builder = WebApplication.CreateBuilder(args);
+
+// 配置 NLog
+builder.Logging.ClearProviders();
+builder.Logging.AddNLog();
 
 // 数据库 — MySQL（带 null 检查，避免未配置时启动崩溃）
 var connectionString = builder.Configuration.GetConnectionString("Default");
@@ -30,6 +36,8 @@ builder.Services.AddScoped<IAlpacaExporter, AlpacaExporter>();
 
 // LLM Service — 使用 Typed HttpClient
 builder.Services.AddHttpClient<ILLMService, LLMService>();
+
+builder.Services.Configure<SiteOptions>(builder.Configuration.GetSection("Site"));
 
 builder.Services.AddControllersWithViews();
 

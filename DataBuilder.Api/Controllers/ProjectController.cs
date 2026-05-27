@@ -9,10 +9,12 @@ namespace DataBuilder.Api.Controllers;
 public class ProjectController : Controller
 {
     private readonly AppDbContext _db;
+    private readonly ILogger<ProjectController> _logger;
 
-    public ProjectController(AppDbContext db)
+    public ProjectController(AppDbContext db, ILogger<ProjectController> logger)
     {
         _db = db;
+        _logger = logger;
     }
 
     // GET: /Project
@@ -57,6 +59,8 @@ public class ProjectController : Controller
         _db.Projects.Add(project);
         await _db.SaveChangesAsync();
 
+        _logger.LogInformation("项目创建成功: {ProjectName} (Id={ProjectId})", project.Name, project.Id);
+
         return RedirectToAction("Detail", new { id = project.Id });
     }
 
@@ -91,6 +95,8 @@ public class ProjectController : Controller
         {
             _db.Projects.Remove(project);
             await _db.SaveChangesAsync();
+
+            _logger.LogInformation("项目已删除: Id={ProjectId}", id);
         }
 
         return RedirectToAction("Index");

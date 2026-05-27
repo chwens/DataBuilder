@@ -1,10 +1,12 @@
+@inject Microsoft.Extensions.Options.IOptions<DataBuilder.Api.Models.SiteOptions> SiteConfig
+
 @{
-    ViewData["Title"] = "DataBuilder";
+    ViewData["Title"] = SiteConfig.Value.AppName;
 }
 
 <div class="text-center mb-5">
-    <h1 class="display-4">DataBuilder</h1>
-    <p class="lead text-muted">Alpaca 数据集构建系统 — 导入文档，自动生成 QA 对，导出 JSONL 微调数据集</p>
+    <h1 class="display-4">@SiteConfig.Value.AppName</h1>
+    <p class="lead text-muted">@SiteConfig.Value.Description</p>
 </div>
 
 <div class="row g-4 justify-content-center">
