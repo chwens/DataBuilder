@@ -1,6 +1,23 @@
 @model ProjectDetailViewModel
+@using DataBuilder.Core.Entities
 @{
     ViewData["Title"] = Model.Project.Name;
+}
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["SuccessMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+@if (TempData["ErrorMessage"] is string errMsg)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> @errMsg
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
 }
 
 <!-- 项目信息头卡片 -->
@@ -28,6 +45,32 @@
                 </button>
             </form>
         </div>
+    </div>
+    <div class="d-flex align-items-center gap-2 mt-2 pt-2 border-top">
+        <span class="text-muted" style="font-size:0.85rem;">
+            <i class="bi bi-cpu"></i> 当前模型：
+        </span>
+        <form asp-action="UpdateLLMConfig" asp-route-id="@Model.Project.Id" method="post" class="d-flex align-items-center gap-2">
+            <select name="llmConfigId" class="form-select form-select-sm" style="width: auto; min-width: 280px;" onchange="this.form.submit()">
+                <option value="">默认 (MiniMax)</option>
+                @if (ViewData["LLMConfigs"] is List<LLMConfig> configs)
+                {
+                    foreach (var cfg in configs)
+                    {
+                        var selected = cfg.Id == Model.Project.LLMConfigId;
+                        <option value="@cfg.Id" selected="@(selected ? "selected" : null)">
+                            @cfg.ModelName (@cfg.Provider) — @cfg.ModelLabel
+                        </option>
+                    }
+                }
+            </select>
+        </form>
+        @if (ViewData["CurrentLLMConfig"] is LLMConfig current && current.IsDeleted)
+        {
+            <span class="badge bg-danger">
+                <i class="bi bi-exclamation-triangle"></i> 模型已失效，请重新选择
+            </span>
+        }
     </div>
 </div>
 

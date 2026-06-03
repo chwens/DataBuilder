@@ -10,11 +10,21 @@ public class AppDbContext : DbContext
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<Document> Documents => Set<Document>();
     public DbSet<Chunk> Chunks => Set<Chunk>();
+    public DbSet<LLMConfig> LLMConfigs => Set<LLMConfig>();
     public DbSet<QAPair> QAPairs => Set<QAPair>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        // LLMConfig 全局查询过滤器：自动过滤已软删除的记录
+        modelBuilder.Entity<LLMConfig>().HasQueryFilter(c => !c.IsDeleted);
+
+        modelBuilder.Entity<Project>()
+            .HasOne(p => p.LLMConfig)
+            .WithMany(c => c.Projects)
+            .HasForeignKey(p => p.LLMConfigId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         modelBuilder.Entity<Document>()
             .HasOne(d => d.Project)

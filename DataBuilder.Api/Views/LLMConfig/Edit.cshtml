@@ -1,0 +1,114 @@
+@model LLMConfigEditViewModel
+@{
+    ViewData["Title"] = "编辑模型配置";
+}
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <h2 class="mb-4">编辑模型配置</h2>
+
+        <form asp-action="Edit" asp-route-id="@Model.Id" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="Id" />
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+            @* 区域1: 基础凭证 *@
+            <h5 class="mb-3"><i class="bi bi-shield-lock"></i> 基础凭证</h5>
+
+            <div class="mb-3">
+                <label asp-for="Provider" class="form-label">提供商</label>
+                <input asp-for="Provider" class="form-control" placeholder="例如：OpenRouter" />
+                <span asp-validation-for="Provider" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="ApiUrl" class="form-label">接口地址</label>
+                <input asp-for="ApiUrl" class="form-control" placeholder="例如：https://openrouter.ai/api/v1/" />
+                <span asp-validation-for="ApiUrl" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="ApiKey" class="form-label">API Key</label>
+                <input asp-for="ApiKey" type="password" class="form-control" placeholder="留空则不修改" />
+                <div class="form-text">
+                    <i class="bi bi-lock"></i> 密钥将使用 AES-256 加密存储。留空则保持原值不变。
+                </div>
+                <span asp-validation-for="ApiKey" class="text-danger"></span>
+            </div>
+
+            @* 区域2: 模型标识 *@
+            <h5 class="mb-3 mt-4"><i class="bi bi-tag"></i> 模型标识</h5>
+
+            <div class="mb-3">
+                <label asp-for="ModelId" class="form-label">模型 ID</label>
+                <input asp-for="ModelId" class="form-control" placeholder="例如：deepseek/deepseek-chat" />
+                <div class="form-text">
+                    <i class="bi bi-info-circle"></i> 请前往提供商官网查看可用模型列表
+                </div>
+                <span asp-validation-for="ModelId" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="ModelName" class="form-label">模型名称</label>
+                <input asp-for="ModelName" class="form-control" placeholder="例如：DeepSeek-V3" />
+                <span asp-validation-for="ModelName" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="ModelLabel" class="form-label">模型标签</label>
+                <input asp-for="ModelLabel" class="form-control" placeholder="例如：DeepSeek" />
+                <span asp-validation-for="ModelLabel" class="text-danger"></span>
+            </div>
+
+            @* 区域3: 高级参数 *@
+            <h5 class="mb-3 mt-4"><i class="bi bi-sliders"></i> 高级参数</h5>
+
+            <div class="mb-3">
+                <label asp-for="Temperature" class="form-label">
+                    Temperature: <strong><span id="tempValue">@(Model.Temperature.ToString("F2"))</span></strong>
+                </label>
+                <div class="form-text mb-1">控制文本随机性/创造力</div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-muted small">0</span>
+                    <input asp-for="Temperature" type="range" class="form-range flex-grow-1"
+                           min="0" max="2" step="0.01"
+                           oninput="document.getElementById('tempValue').textContent = parseFloat(this.value).toFixed(2)" />
+                    <span class="text-muted small">2</span>
+                </div>
+                <span asp-validation-for="Temperature" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="MaxTokens" class="form-label">Max Tokens</label>
+                <div class="form-text mb-1">单次输出的最大 Token 数</div>
+                <input asp-for="MaxTokens" type="number" class="form-control" placeholder="8192" style="max-width:200px;" />
+                <span asp-validation-for="MaxTokens" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="TopP" class="form-label">
+                    TopP: <strong><span id="topPValue">@(Model.TopP.ToString("F2"))</span></strong>
+                </label>
+                <div class="form-text mb-1">核心采样概率范围</div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-muted small">0</span>
+                    <input asp-for="TopP" type="range" class="form-range flex-grow-1"
+                           min="0" max="1" step="0.01"
+                           oninput="document.getElementById('topPValue').textContent = parseFloat(this.value).toFixed(2)" />
+                    <span class="text-muted small">1</span>
+                </div>
+                <span asp-validation-for="TopP" class="text-danger"></span>
+            </div>
+
+            @* 底部按钮 *@
+            <div class="mt-4 pt-3 border-top">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> 保存</button>
+                <a asp-action="Index" class="btn btn-secondary"><i class="bi bi-x-lg"></i> 取消</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

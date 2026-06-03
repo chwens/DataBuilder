@@ -26,5 +26,8 @@ public class Project
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    public int? LLMConfigId { get; set; }
+    public LLMConfig? LLMConfig { get; set; }
+
     public ICollection<Document> Documents { get; set; } = new List<Document>();
 }

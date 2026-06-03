@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using DataBuilder.Core.DTOs;
+using DataBuilder.Core.Entities;
 using DataBuilder.Core.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -13,6 +14,7 @@ public class LLMService : ILLMService
 {
     private readonly HttpClient _httpClient;
     private readonly string _model;
+    private readonly IEncryptionService _encryption;
     private readonly ILogger<LLMService> _logger;
 
     private static readonly Regex JsonArrayRegex = new(
@@ -23,9 +25,11 @@ public class LLMService : ILLMService
         PropertyNameCaseInsensitive = true
     };
 
-    public LLMService(HttpClient httpClient, IConfiguration configuration, ILogger<LLMService> logger)
+    public LLMService(HttpClient httpClient, IConfiguration configuration,
+        IEncryptionService encryption, ILogger<LLMService> logger)
     {
         _httpClient = httpClient;
+        _encryption = encryption;
         _logger = logger;
 
         var baseUrl = configuration["LLM:BaseUrl"] ?? "https://api.minimax.chat/v1";
@@ -54,7 +58,25 @@ public class LLMService : ILLMService
         var systemPrompt = customPrompt ?? BuildDefaultQuestionSystemPrompt(qaType, count);
         var userPrompt = BuildQuestionUserPrompt(chunkText, count, qaType);
 
-        var response = await CallLLMAsync(systemPrompt, userPrompt, 0.7f, count * 300, cancellationToken);
+        var response = await CallLLMAsync(systemPrompt, userPrompt, 0.7f, count * 300, null, cancellationToken);
+        return ParseQuestionList(response);
+    }
+
+    /// <summary>
+    /// 第一步：从文本片段生成问题列表（指定模型配置）
+    /// </summary>
+    public async Task<List<string>> GenerateQuestionsAsync(
+        string chunkText, LLMConfig config,
+        string qaType = "Factoid", int count = 3, string? customPrompt = null,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateConfig(config);
+
+        var systemPrompt = customPrompt ?? BuildDefaultQuestionSystemPrompt(qaType, count);
+        var userPrompt = BuildQuestionUserPrompt(chunkText, count, qaType);
+
+        var response = await CallLLMWithConfigAsync(
+            config, systemPrompt, userPrompt, count * 300, cancellationToken);
         return ParseQuestionList(response);
     }
 
@@ -67,15 +89,36 @@ public class LLMService : ILLMService
         var systemPrompt = customPrompt ?? BuildDefaultAnswerSystemPrompt();
         var userPrompt = BuildAnswerUserPrompt(chunkText, question);
 
-        var response = await CallLLMAsync(systemPrompt, userPrompt, 0.7f, 1500, cancellationToken);
+        var response = await CallLLMAsync(systemPrompt, userPrompt, 0.7f, 1500, null, cancellationToken);
+        return response.Trim();
+    }
+
+    /// <summary>
+    /// 第二步：为指定问题生成答案（指定模型配置）
+    /// </summary>
+    public async Task<string> GenerateAnswerAsync(
+        string chunkText, string question, LLMConfig config,
+        string? customPrompt = null,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateConfig(config);
+
+        var systemPrompt = customPrompt ?? BuildDefaultAnswerSystemPrompt();
+        var userPrompt = BuildAnswerUserPrompt(chunkText, question);
+
+        var response = await CallLLMWithConfigAsync(
+            config, systemPrompt, userPrompt, config.MaxTokens, cancellationToken);
         return response.Trim();
     }
 
     // ==================== LLM 调用核心 ====================
 
+    /// <summary>
+    /// 使用默认 HttpClient 调用 LLM（.env 默认配置）
+    /// </summary>
     private async Task<string> CallLLMAsync(
         string systemPrompt, string userPrompt, float temperature, int maxTokens,
-        CancellationToken cancellationToken = default)
+        float? topP, CancellationToken cancellationToken = default)
     {
         var request = new ChatCompletionRequest
         {
@@ -86,9 +129,51 @@ public class LLMService : ILLMService
                 new() { Role = "user", Content = userPrompt }
             },
             Temperature = temperature,
-            MaxTokens = maxTokens
+            MaxTokens = maxTokens,
+            TopP = topP
         };
 
+        return await CallLLMWithClientAsync(_httpClient, _model, request, cancellationToken);
+    }
+
+    /// <summary>
+    /// 使用 LLMConfig 配置创建临时 HttpClient 调用 LLM
+    /// </summary>
+    private async Task<string> CallLLMWithConfigAsync(
+        LLMConfig config, string systemPrompt, string userPrompt,
+        int maxTokens, CancellationToken cancellationToken = default)
+    {
+        var apiKey = _encryption.Decrypt(config.ApiKeyEncrypted);
+
+        using var client = new HttpClient();
+        client.BaseAddress = new Uri(config.ApiUrl.TrimEnd('/') + "/");
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", apiKey);
+        client.Timeout = TimeSpan.FromSeconds(120);
+
+        var request = new ChatCompletionRequest
+        {
+            Model = config.ModelId,
+            Messages = new List<ChatMessage>
+            {
+                new() { Role = "system", Content = systemPrompt },
+                new() { Role = "user", Content = userPrompt }
+            },
+            Temperature = config.Temperature,
+            MaxTokens = maxTokens,
+            TopP = config.TopP
+        };
+
+        return await CallLLMWithClientAsync(client, config.ModelId, request, cancellationToken);
+    }
+
+    /// <summary>
+    /// HTTP 请求 + 3 次重试 + 响应解析核心逻辑
+    /// </summary>
+    private async Task<string> CallLLMWithClientAsync(
+        HttpClient client, string model, ChatCompletionRequest request,
+        CancellationToken cancellationToken)
+    {
         for (int attempt = 0; attempt < 3; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -98,13 +183,23 @@ public class LLMService : ILLMService
                 var json = JsonSerializer.Serialize(request);
                 var httpContent = new StringContent(json, Encoding.UTF8, "application/json");
 
-                var response = await _httpClient.PostAsync("chat/completions", httpContent, cancellationToken);
+                var response = await client.PostAsync("chat/completions", httpContent, cancellationToken);
                 var body = await response.Content.ReadAsStringAsync(cancellationToken);
 
                 if (!response.IsSuccessStatusCode)
                 {
                     _logger.LogWarning("LLM API 返回错误 (尝试 {Attempt}/3): {StatusCode}",
                         attempt + 1, response.StatusCode);
+
+                    var statusCode = (int)response.StatusCode;
+                    if (statusCode is >= 400 and < 500)
+                    {
+                        // 客户端错误（401/403/404 等）不会因重试而恢复，直接抛出不可重试异常
+                        var truncatedBody = body.Length > 200 ? body[..200] + "..." : body;
+                        throw new InvalidOperationException(
+                            $"LLM API 返回客户端错误 {statusCode}: {truncatedBody}");
+                    }
+
                     throw new HttpRequestException($"LLM API 返回 {response.StatusCode}: {body}");
                 }
 
@@ -112,11 +207,11 @@ public class LLMService : ILLMService
 
                 var content = completion?.Choices?.FirstOrDefault()?.Message.Content;
                 if (string.IsNullOrEmpty(content))
-                    throw new InvalidOperationException("LLM 返回了空响应或无效的 choices 列表");
+                    throw new HttpRequestException("LLM 返回了空响应或无效的 choices 列表");
 
                 return content;
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception ex) when (ex is not OperationCanceledException and not InvalidOperationException)
             {
                 _logger.LogWarning(ex, "LLM 调用失败 (尝试 {Attempt}/3)", attempt + 1);
 
@@ -128,6 +223,15 @@ public class LLMService : ILLMService
         }
 
         throw new InvalidOperationException("LLM 调用在 3 次重试后仍然失败");
+    }
+
+    /// <summary>
+    /// 校验 LLMConfig 是否有效
+    /// </summary>
+    private static void ValidateConfig(LLMConfig config)
+    {
+        if (config.IsDeleted)
+            throw new InvalidOperationException("模型配置已失效，请重新选择模型。");
     }
 
     // ==================== 默认 Prompt 模板 ====================

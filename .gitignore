@@ -24,6 +24,9 @@ obj/
 .DS_Store
 Thumbs.db
 
+# 加密密钥文件
+.encryption-key
+
 # 构建产物
 /publish/
 .claude/

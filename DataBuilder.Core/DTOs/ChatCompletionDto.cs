@@ -18,6 +18,10 @@ public class ChatCompletionRequest
 
     [JsonPropertyName("max_tokens")]
     public int MaxTokens { get; set; } = 2048;
+
+    [JsonPropertyName("top_p")]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public float? TopP { get; set; }
 }
 
 public class ChatMessage

@@ -14,6 +14,14 @@
         </div>
     }
 
+    @if (TempData["ErrorMessage"] is string errMsg)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle"></i> @errMsg
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
     @* 类型筛选栏 + 统计信息 *@
     <div class="card mb-3">
         <div class="card-body">

@@ -119,46 +119,94 @@ public class QAController : Controller
         if (document == null)
             return NotFound();
 
+        // 加载项目关联的 LLMConfig
+        LLMConfig? llmConfig = null;
+        if (document.Project?.LLMConfigId != null)
+        {
+            llmConfig = await _db.LLMConfigs
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(c => c.Id == document.Project.LLMConfigId);
+        }
+
+        // 如果配置了 LLMConfig 但已失效，阻止操作
+        if (llmConfig != null && llmConfig.IsDeleted)
+        {
+            TempData["ErrorMessage"] = "当前项目使用的模型配置已失效，请重新选择模型。";
+            return RedirectToAction("Detail", "Project", new { id = document.ProjectId });
+        }
+
         var chunks = document.Chunks.OrderBy(c => c.Sequence).ToList();
         var customPrompt = document.Project?.QuestionPrompt;
 
-        // 先生成所有新问题（收集到内存），全部成功后再替换旧数据
-        var newQaPairs = new List<QAPair>();
-        foreach (var chunk in chunks)
+        try
         {
-            var questions = await _llm.GenerateQuestionsAsync(
-                chunk.TextContent,
-                qaType!,
-                countPerChunk,
-                customPrompt,
-                HttpContext.RequestAborted);
+            // CR-10: 在 LLM 调用之前设置 Generating 状态，防止用户重复点击
+            document.Status = DocumentStatus.Generating;
+            await _db.SaveChangesAsync();
 
-            foreach (var question in questions)
+            // 先生成所有新问题（收集到内存），全部成功后再替换旧数据
+            var newQaPairs = new List<QAPair>();
+            foreach (var chunk in chunks)
             {
-                newQaPairs.Add(new QAPair
+                List<string> questions;
+                if (llmConfig != null)
                 {
-                    ChunkId = chunk.Id,
-                    Instruction = question,
-                    Type = qaType!,
-                    Answered = false
-                });
+                    questions = await _llm.GenerateQuestionsAsync(
+                        chunk.TextContent, llmConfig,
+                        qaType!, countPerChunk, customPrompt,
+                        HttpContext.RequestAborted);
+                }
+                else
+                {
+                    questions = await _llm.GenerateQuestionsAsync(
+                        chunk.TextContent,
+                        qaType!,
+                        countPerChunk,
+                        customPrompt,
+                        HttpContext.RequestAborted);
+                }
+
+                foreach (var question in questions)
+                {
+                    newQaPairs.Add(new QAPair
+                    {
+                        ChunkId = chunk.Id,
+                        Instruction = question,
+                        Type = qaType!,
+                        Answered = false
+                    });
+                }
             }
+
+            // CR-7: 用事务包裹 QA 替换操作，保证数据一致性
+            using var transaction = await _db.Database.BeginTransactionAsync();
+            try
+            {
+                var existingQas = await _db.QAPairs
+                    .Where(q => q.Chunk!.DocumentId == documentId)
+                    .ToListAsync();
+                _db.QAPairs.RemoveRange(existingQas);
+                _db.QAPairs.AddRange(newQaPairs);
+                await _db.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+
+            _logger.LogInformation("问题生成完成: DocumentId={DocumentId}, 类型={QaType}, 数量={Count}", documentId, qaType, newQaPairs.Count);
+
+            TempData["Message"] = $"已为 {chunks.Count} 个文本片段生成问题。";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "问题生成失败: DocumentId={DocumentId}", documentId);
+            TempData["ErrorMessage"] = $"问题生成失败：{ex.Message}";
         }
 
-        // 全部生成成功后才替换旧数据
-        var existingQas = await _db.QAPairs
-            .Where(q => q.Chunk!.DocumentId == documentId)
-            .ToListAsync();
-        _db.QAPairs.RemoveRange(existingQas);
-        _db.QAPairs.AddRange(newQaPairs);
-        await _db.SaveChangesAsync();
-
-        document.Status = DocumentStatus.Generating;
-        await _db.SaveChangesAsync();
-
-        _logger.LogInformation("问题生成完成: DocumentId={DocumentId}, 类型={QaType}, 数量={Count}", documentId, qaType, newQaPairs.Count);
-
-        TempData["Message"] = $"已为 {chunks.Count} 个文本片段生成问题。";
         return RedirectToAction(nameof(Preview), new { documentId });
     }
 
@@ -174,6 +222,22 @@ public class QAController : Controller
         if (document == null)
             return NotFound();
 
+        // 加载项目关联的 LLMConfig
+        LLMConfig? llmConfig = null;
+        if (document.Project?.LLMConfigId != null)
+        {
+            llmConfig = await _db.LLMConfigs
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(c => c.Id == document.Project.LLMConfigId);
+        }
+
+        // 如果配置了 LLMConfig 但已失效，阻止操作
+        if (llmConfig != null && llmConfig.IsDeleted)
+        {
+            TempData["ErrorMessage"] = "当前项目使用的模型配置已失效，请重新选择模型。";
+            return RedirectToAction("Detail", "Project", new { id = document.ProjectId });
+        }
+
         var qaPairs = await _db.QAPairs
             .Include(q => q.Chunk)
             .Where(q => q.Chunk!.DocumentId == documentId && !q.Answered)
@@ -186,11 +250,24 @@ public class QAController : Controller
         {
             foreach (var qa in qaPairs)
             {
-                var answer = await _llm.GenerateAnswerAsync(
-                    qa.Chunk!.TextContent,
-                    qa.Instruction,
-                    customPrompt,
-                    HttpContext.RequestAborted);
+                string answer;
+                if (llmConfig != null)
+                {
+                    answer = await _llm.GenerateAnswerAsync(
+                        qa.Chunk!.TextContent,
+                        qa.Instruction,
+                        llmConfig,
+                        customPrompt,
+                        HttpContext.RequestAborted);
+                }
+                else
+                {
+                    answer = await _llm.GenerateAnswerAsync(
+                        qa.Chunk!.TextContent,
+                        qa.Instruction,
+                        customPrompt,
+                        HttpContext.RequestAborted);
+                }
 
                 qa.Output = answer;
                 qa.Answered = true;

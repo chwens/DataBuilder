@@ -39,6 +39,8 @@ builder.Services.AddHttpClient<ILLMService, LLMService>();
 
 builder.Services.Configure<SiteOptions>(builder.Configuration.GetSection("Site"));
 
+builder.Services.AddSingleton<IEncryptionService, EncryptionService>();
+
 builder.Services.AddControllersWithViews();
 
 var app = builder.Build();

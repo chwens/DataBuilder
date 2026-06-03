@@ -61,6 +61,22 @@ public class ProjectController : Controller
             return NotFound();
         }
 
+        var llmConfigs = await _db.LLMConfigs
+            .OrderBy(c => c.Provider)
+            .ThenBy(c => c.ModelName)
+            .ToListAsync();
+
+        LLMConfig? currentConfig = null;
+        if (project.LLMConfigId != null)
+        {
+            currentConfig = await _db.LLMConfigs
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(c => c.Id == project.LLMConfigId);
+        }
+
+        ViewData["LLMConfigs"] = llmConfigs;
+        ViewData["CurrentLLMConfig"] = currentConfig;
+
         var model = new ProjectDetailViewModel
         {
             Project = project,
@@ -85,6 +101,35 @@ public class ProjectController : Controller
         }
 
         return RedirectToAction("Index", "Home");
+    }
+
+    // POST: /Project/UpdateLLMConfig/{id}
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateLLMConfig(int id, int? llmConfigId)
+    {
+        var project = await _db.Projects.FindAsync(id);
+        if (project == null) return NotFound();
+
+        if (llmConfigId != null)
+        {
+            var configExists = await _db.LLMConfigs.AnyAsync(c => c.Id == llmConfigId.Value);
+            if (!configExists)
+            {
+                TempData["ErrorMessage"] = "所选模型配置不存在或已被删除。";
+                return RedirectToAction("Detail", new { id });
+            }
+        }
+
+        project.LLMConfigId = llmConfigId;
+        project.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        TempData["SuccessMessage"] = llmConfigId == null
+            ? "已切换为默认模型 (MiniMax)。"
+            : "模型配置已更新。";
+
+        return RedirectToAction("Detail", new { id });
     }
 
     // GET: /Project/Settings/{id}

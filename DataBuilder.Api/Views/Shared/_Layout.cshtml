@@ -13,9 +13,13 @@
 </head>
 <body>
     <nav class="navbar navbar-dark top-navbar fixed-top">
-        <div class="container-fluid">
+        <div class="container-fluid d-flex align-items-center">
             <a class="navbar-brand" asp-controller="Home" asp-action="Index">
                 <span class="brand-icon">D</span> DataBuilder
+            </a>
+            <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "LLMConfig" ? "active" : "")"
+               asp-controller="LLMConfig" asp-action="Index">
+                <i class="bi bi-cpu"></i> 模型配置
             </a>
         </div>
     </nav>

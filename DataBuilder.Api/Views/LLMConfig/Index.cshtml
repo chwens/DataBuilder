@@ -1,0 +1,113 @@
+@model LLMConfigListViewModel
+@{
+    ViewData["Title"] = "模型配置";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1">模型配置</h2>
+        <p class="text-muted mb-0">管理大语言模型配置，为项目提供 AI 生成能力</p>
+    </div>
+    <a asp-action="Create" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> 添加模型
+    </a>
+</div>
+
+@* TempData 消息 *@
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @TempData["SuccessMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> @TempData["ErrorMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+@if (Model.Configs.Count == 0)
+{
+    <div class="empty-state">
+        <i class="bi bi-cpu"></i>
+        <h3>暂无模型配置</h3>
+        <p class="text-muted">添加您的第一个大语言模型配置</p>
+        <a asp-action="Create" class="btn btn-primary btn-lg mt-3">
+            <i class="bi bi-plus-lg"></i> 添加模型
+        </a>
+    </div>
+}
+else
+{
+    <div class="project-grid">
+        @foreach (var config in Model.Configs)
+        {
+            <div class="project-card-link" style="cursor:default">
+                <div class="project-card card">
+                    <div class="card-body">
+                        @* 卡片头部: 图标 + 标题 + 操作按钮 *@
+                        <div class="card-top">
+                            <div class="project-icon-block">
+                                <span>
+                                    @(string.IsNullOrEmpty(config.ModelLabel) ? "M" : config.ModelLabel[0].ToString().ToUpper())
+                                </span>
+                            </div>
+                            <div class="project-info">
+                                <h5 class="project-title">
+                                    @config.ModelName
+                                    <span class="badge bg-secondary ms-1">@config.ModelLabel</span>
+                                </h5>
+                                <span class="project-id">@config.Provider</span>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <a asp-action="Edit" asp-route-id="@config.Id" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-pencil"></i> 编辑
+                                </a>
+                                <form asp-action="Delete" asp-route-id="@config.Id" method="post"
+                                      onsubmit="return confirm('确定要删除模型配置 ' + @Json.Serialize(config.ModelName) + ' 吗？')">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="bi bi-trash"></i> 删除
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        @* 描述行 *@
+                        <p class="project-desc">
+                            <strong>Model ID:</strong> @config.ModelId<br />
+                            <strong>使用中:</strong> @config.ProjectCount 个项目
+                        </p>
+
+                        @* 元数据 *@
+                        <div class="project-stats">
+                            <div class="stat-item">
+                                <i class="bi bi-cpu stat-icon stat-icon-blue"></i>
+                                <span class="stat-value">@config.ModelId</span>
+                                <span class="stat-label">Model ID</span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="bi bi-folder stat-icon stat-icon-purple"></i>
+                                <span class="stat-value">@config.ProjectCount</span>
+                                <span class="stat-label">关联项目</span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="bi bi-building stat-icon stat-icon-green"></i>
+                                <span class="stat-value">@config.Provider</span>
+                                <span class="stat-label">提供商</span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="bi bi-calendar3 stat-icon stat-icon-orange"></i>
+                                <span class="stat-value">@config.CreatedAt.ToString("yyyy-MM-dd")</span>
+                                <span class="stat-label">创建日期</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
