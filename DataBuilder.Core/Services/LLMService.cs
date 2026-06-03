@@ -5,15 +5,12 @@ using System.Text.RegularExpressions;
 using DataBuilder.Core.DTOs;
 using DataBuilder.Core.Entities;
 using DataBuilder.Core.Interfaces;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace DataBuilder.Core.Services;
 
 public class LLMService : ILLMService
 {
-    private readonly HttpClient _httpClient;
-    private readonly string _model;
     private readonly IEncryptionService _encryption;
     private readonly ILogger<LLMService> _logger;
 
@@ -25,42 +22,14 @@ public class LLMService : ILLMService
         PropertyNameCaseInsensitive = true
     };
 
-    public LLMService(HttpClient httpClient, IConfiguration configuration,
-        IEncryptionService encryption, ILogger<LLMService> logger)
+    public LLMService(IEncryptionService encryption, ILogger<LLMService> logger)
     {
-        _httpClient = httpClient;
         _encryption = encryption;
         _logger = logger;
-
-        var baseUrl = configuration["LLM:BaseUrl"] ?? "https://api.minimax.chat/v1";
-        var apiKey = configuration["LLM:ApiKey"];
-        if (string.IsNullOrEmpty(apiKey))
-            apiKey = Environment.GetEnvironmentVariable("MINIMAX_TOKEN") ?? "";
-        _model = configuration["LLM:Model"] ?? "MiniMax-M2.5";
-
-        // 必须保留尾部斜杠，否则 HttpClient 在拼接相对 URI 时会丢弃最后一个路径段
-        // 例如 https://api.minimax.chat/v1 + chat/completions → https://api.minimax.chat/chat/completions (错误!)
-        _httpClient.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
-        _httpClient.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", apiKey);
-        _httpClient.Timeout = TimeSpan.FromSeconds(120);
-
-        _logger.LogInformation("LLMService 初始化: BaseUrl={BaseUrl}, Model={Model}, HasApiKey={HasKey}",
-            baseUrl, _model, !string.IsNullOrEmpty(apiKey));
+        _logger.LogInformation("LLMService 初始化完成（仅支持 LLMConfig 配置调用）");
     }
 
     // ==================== 第一步：生成问题 ====================
-
-    public async Task<List<string>> GenerateQuestionsAsync(
-        string chunkText, string qaType = "Factoid", int count = 3, string? customPrompt = null,
-        CancellationToken cancellationToken = default)
-    {
-        var systemPrompt = customPrompt ?? BuildDefaultQuestionSystemPrompt(qaType, count);
-        var userPrompt = BuildQuestionUserPrompt(chunkText, count, qaType);
-
-        var response = await CallLLMAsync(systemPrompt, userPrompt, 0.7f, count * 300, null, cancellationToken);
-        return ParseQuestionList(response);
-    }
 
     /// <summary>
     /// 第一步：从文本片段生成问题列表（指定模型配置）
@@ -82,17 +51,6 @@ public class LLMService : ILLMService
 
     // ==================== 第二步：生成答案 ====================
 
-    public async Task<string> GenerateAnswerAsync(
-        string chunkText, string question, string? customPrompt = null,
-        CancellationToken cancellationToken = default)
-    {
-        var systemPrompt = customPrompt ?? BuildDefaultAnswerSystemPrompt();
-        var userPrompt = BuildAnswerUserPrompt(chunkText, question);
-
-        var response = await CallLLMAsync(systemPrompt, userPrompt, 0.7f, 1500, null, cancellationToken);
-        return response.Trim();
-    }
-
     /// <summary>
     /// 第二步：为指定问题生成答案（指定模型配置）
     /// </summary>
@@ -112,29 +70,6 @@ public class LLMService : ILLMService
     }
 
     // ==================== LLM 调用核心 ====================
-
-    /// <summary>
-    /// 使用默认 HttpClient 调用 LLM（.env 默认配置）
-    /// </summary>
-    private async Task<string> CallLLMAsync(
-        string systemPrompt, string userPrompt, float temperature, int maxTokens,
-        float? topP, CancellationToken cancellationToken = default)
-    {
-        var request = new ChatCompletionRequest
-        {
-            Model = _model,
-            Messages = new List<ChatMessage>
-            {
-                new() { Role = "system", Content = systemPrompt },
-                new() { Role = "user", Content = userPrompt }
-            },
-            Temperature = temperature,
-            MaxTokens = maxTokens,
-            TopP = topP
-        };
-
-        return await CallLLMWithClientAsync(_httpClient, _model, request, cancellationToken);
-    }
 
     /// <summary>
     /// 使用 LLMConfig 配置创建临时 HttpClient 调用 LLM

@@ -111,23 +111,24 @@ public class ProjectController : Controller
         var project = await _db.Projects.FindAsync(id);
         if (project == null) return NotFound();
 
-        if (llmConfigId != null)
+        if (llmConfigId == null)
         {
-            var configExists = await _db.LLMConfigs.AnyAsync(c => c.Id == llmConfigId.Value);
-            if (!configExists)
-            {
-                TempData["ErrorMessage"] = "所选模型配置不存在或已被删除。";
-                return RedirectToAction("Detail", new { id });
-            }
+            TempData["ErrorMessage"] = "请选择一个模型配置，不再支持默认模型。";
+            return RedirectToAction("Detail", new { id });
+        }
+
+        var configExists = await _db.LLMConfigs.AnyAsync(c => c.Id == llmConfigId.Value);
+        if (!configExists)
+        {
+            TempData["ErrorMessage"] = "所选模型配置不存在或已被删除。";
+            return RedirectToAction("Detail", new { id });
         }
 
         project.LLMConfigId = llmConfigId;
         project.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
-        TempData["SuccessMessage"] = llmConfigId == null
-            ? "已切换为默认模型 (MiniMax)。"
-            : "模型配置已更新。";
+        TempData["SuccessMessage"] = "模型配置已更新。";
 
         return RedirectToAction("Detail", new { id });
     }

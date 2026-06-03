@@ -30,3 +30,6 @@ Thumbs.db
 # 构建产物
 /publish/
 .claude/
+
+# docx
+./docx

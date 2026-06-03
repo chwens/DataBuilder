@@ -1,5 +1,6 @@
 using DataBuilder.Api.Models;
 using DataBuilder.Core;
+using DataBuilder.Core.Entities;
 using DataBuilder.Core.Interfaces;
 using DataBuilder.Core.Services;
 using Microsoft.EntityFrameworkCore;
@@ -34,8 +35,8 @@ else
 builder.Services.AddScoped<IDocumentParser, DocumentParser>();
 builder.Services.AddScoped<IAlpacaExporter, AlpacaExporter>();
 
-// LLM Service — 使用 Typed HttpClient
-builder.Services.AddHttpClient<ILLMService, LLMService>();
+// LLM Service — 不再依赖注入 HttpClient，改为由 LLMConfig 驱动每次创建
+builder.Services.AddScoped<ILLMService, LLMService>();
 
 builder.Services.Configure<SiteOptions>(builder.Configuration.GetSection("Site"));
 
@@ -44,6 +45,38 @@ builder.Services.AddSingleton<IEncryptionService, EncryptionService>();
 builder.Services.AddControllersWithViews();
 
 var app = builder.Build();
+
+// 种子数据：如果没有 LLMConfig，创建默认 MiniMax 配置
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var encryption = scope.ServiceProvider.GetRequiredService<IEncryptionService>();
+
+    if (!await db.LLMConfigs.AnyAsync())
+    {
+        var apiKey = Environment.GetEnvironmentVariable("MINIMAX_TOKEN")
+                  ?? builder.Configuration["LLM:ApiKey"]
+                  ?? "";
+
+        if (!string.IsNullOrEmpty(apiKey))
+        {
+            db.LLMConfigs.Add(new LLMConfig
+            {
+                Provider = "MiniMax",
+                ApiUrl = "https://api.minimax.chat/v1/",
+                ApiKeyEncrypted = encryption.Encrypt(apiKey),
+                ModelId = "MiniMax-M2.5",
+                ModelName = "MiniMax-M2.5",
+                ModelLabel = "MiniMax",
+                Temperature = 0.7f,
+                MaxTokens = 8192,
+                TopP = 1.0f,
+                CreatedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+        }
+    }
+}
 
 if (!app.Environment.IsDevelopment())
 {

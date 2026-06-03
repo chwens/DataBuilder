@@ -52,7 +52,7 @@
         </span>
         <form asp-action="UpdateLLMConfig" asp-route-id="@Model.Project.Id" method="post" class="d-flex align-items-center gap-2">
             <select name="llmConfigId" class="form-select form-select-sm" style="width: auto; min-width: 280px;" onchange="this.form.submit()">
-                <option value="">默认 (MiniMax)</option>
+                <option value="">-- 请选择模型 --</option>
                 @if (ViewData["LLMConfigs"] is List<LLMConfig> configs)
                 {
                     foreach (var cfg in configs)

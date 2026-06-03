@@ -135,6 +135,13 @@ public class QAController : Controller
             return RedirectToAction("Detail", "Project", new { id = document.ProjectId });
         }
 
+        // 如果没有选择 LLMConfig，返回错误提示
+        if (llmConfig == null)
+        {
+            TempData["ErrorMessage"] = "请先在项目设置中选择模型配置。";
+            return RedirectToAction("Detail", "Project", new { id = document.ProjectId });
+        }
+
         var chunks = document.Chunks.OrderBy(c => c.Sequence).ToList();
         var customPrompt = document.Project?.QuestionPrompt;
 
@@ -149,22 +156,10 @@ public class QAController : Controller
             foreach (var chunk in chunks)
             {
                 List<string> questions;
-                if (llmConfig != null)
-                {
-                    questions = await _llm.GenerateQuestionsAsync(
-                        chunk.TextContent, llmConfig,
-                        qaType!, countPerChunk, customPrompt,
-                        HttpContext.RequestAborted);
-                }
-                else
-                {
-                    questions = await _llm.GenerateQuestionsAsync(
-                        chunk.TextContent,
-                        qaType!,
-                        countPerChunk,
-                        customPrompt,
-                        HttpContext.RequestAborted);
-                }
+                questions = await _llm.GenerateQuestionsAsync(
+                    chunk.TextContent, llmConfig,
+                    qaType!, countPerChunk, customPrompt,
+                    HttpContext.RequestAborted);
 
                 foreach (var question in questions)
                 {
@@ -238,6 +233,13 @@ public class QAController : Controller
             return RedirectToAction("Detail", "Project", new { id = document.ProjectId });
         }
 
+        // 如果没有选择 LLMConfig，返回错误提示
+        if (llmConfig == null)
+        {
+            TempData["ErrorMessage"] = "请先在项目设置中选择模型配置。";
+            return RedirectToAction("Detail", "Project", new { id = document.ProjectId });
+        }
+
         var qaPairs = await _db.QAPairs
             .Include(q => q.Chunk)
             .Where(q => q.Chunk!.DocumentId == documentId && !q.Answered)
@@ -251,23 +253,12 @@ public class QAController : Controller
             foreach (var qa in qaPairs)
             {
                 string answer;
-                if (llmConfig != null)
-                {
-                    answer = await _llm.GenerateAnswerAsync(
-                        qa.Chunk!.TextContent,
-                        qa.Instruction,
-                        llmConfig,
-                        customPrompt,
-                        HttpContext.RequestAborted);
-                }
-                else
-                {
-                    answer = await _llm.GenerateAnswerAsync(
-                        qa.Chunk!.TextContent,
-                        qa.Instruction,
-                        customPrompt,
-                        HttpContext.RequestAborted);
-                }
+                answer = await _llm.GenerateAnswerAsync(
+                    qa.Chunk!.TextContent,
+                    qa.Instruction,
+                    llmConfig,
+                    customPrompt,
+                    HttpContext.RequestAborted);
 
                 qa.Output = answer;
                 qa.Answered = true;
