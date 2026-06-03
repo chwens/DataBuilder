@@ -20,6 +20,15 @@
             <div class="d-flex justify-content-between align-items-center">
                 <div class="d-flex align-items-center gap-2">
                     <form method="get" class="d-flex align-items-center gap-2" id="filterForm">
+                        @* 保留 documentId / projectId，避免 GET 表单提交时丢失路由参数导致 404 *@
+                        @if (ViewData["IsProjectView"] is true)
+                        {
+                            <input type="hidden" name="projectId" value="@projectId" />
+                        }
+                        else
+                        {
+                            <input type="hidden" name="documentId" value="@Model.Document.Id" />
+                        }
                         <label for="filterType" class="form-label mb-0">类型筛选：</label>
                         <select name="filterType" id="filterType" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
                             <option value="">全部类型</option>
