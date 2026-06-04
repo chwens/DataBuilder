@@ -101,7 +101,7 @@ else
                             </div>
                             <div class="stat-item">
                                 <i class="bi bi-calendar3 stat-icon stat-icon-orange"></i>
-                                <span class="stat-value">@config.CreatedAt.ToString("yyyy-MM-dd")</span>
+                                <span class="stat-value">@config.CreatedAt.ToBeijingTime().ToString("yyyy-MM-dd")</span>
                                 <span class="stat-label">创建日期</span>
                             </div>
                         </div>

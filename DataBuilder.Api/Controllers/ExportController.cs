@@ -3,6 +3,7 @@ using DataBuilder.Core.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Text.RegularExpressions;
+using static DataBuilder.Core.BeijingTime;
 
 namespace DataBuilder.Api.Controllers;
 
@@ -47,7 +48,7 @@ public class ExportController : Controller
 
         var bytes = await _exporter.ExportAsync(qaPairs);
         var safeName = Regex.Replace(project.Name, @"[<>:""/\\|?*]", "_");
-        var fileName = $"{safeName}_alpaca_{DateTime.UtcNow:yyyyMMdd_HHmmss}.jsonl";
+        var fileName = $"{safeName}_alpaca_{Now:yyyyMMdd_HHmmss}.jsonl";
 
         _logger.LogInformation("导出数据集: ProjectId={ProjectId}, QA数={Count}", projectId, qaPairs.Count);
 
@@ -67,7 +68,7 @@ public class ExportController : Controller
             .ToListAsync();
 
         var bytes = await _exporter.ExportAsync(qaPairs);
-        var fileName = $"alpaca_selected_{DateTime.UtcNow:yyyyMMdd_HHmmss}.jsonl";
+        var fileName = $"alpaca_selected_{Now:yyyyMMdd_HHmmss}.jsonl";
 
         _logger.LogInformation("导出选中QA: 数量={Count}", qaPairs.Count);
 

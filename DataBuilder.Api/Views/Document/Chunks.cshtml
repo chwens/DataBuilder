@@ -29,7 +29,7 @@
                 <div>
                     <h5 class="card-title mb-1">@Model.Document.FileName</h5>
                     <p class="card-text text-muted mb-0">
-                        <small>上传时间：@Model.Document.CreatedAt.ToString("yyyy-MM-dd HH:mm")</small>
+                        <small>上传时间：@Model.Document.CreatedAt.ToBeijingTime().ToString("yyyy-MM-dd HH:mm")</small>
                     </p>
                 </div>
                 <span class="badge @(Model.Document.Status switch

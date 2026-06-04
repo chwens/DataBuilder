@@ -30,8 +30,8 @@
                 <p class="project-header-desc">@Model.Project.Description</p>
             }
             <div class="project-header-meta">
-                <span><i class="bi bi-calendar-plus"></i> 创建: @Model.Project.CreatedAt.ToString("yyyy-MM-dd HH:mm")</span>
-                <span><i class="bi bi-pencil-square"></i> 更新: @Model.Project.UpdatedAt.ToString("yyyy-MM-dd HH:mm")</span>
+                <span><i class="bi bi-calendar-plus"></i> 创建: @Model.Project.CreatedAt.ToBeijingTime().ToString("yyyy-MM-dd HH:mm")</span>
+                <span><i class="bi bi-pencil-square"></i> 更新: @Model.Project.UpdatedAt.ToBeijingTime().ToString("yyyy-MM-dd HH:mm")</span>
             </div>
         </div>
         <div class="d-flex gap-2 flex-shrink-0">
@@ -145,7 +145,7 @@ else
                             }
                         </div>
                         <div class="doc-card-meta">
-                            <span><i class="bi bi-clock"></i> 上传于 @doc.CreatedAt.ToString("yyyy-MM-dd HH:mm")</span>
+                            <span><i class="bi bi-clock"></i> 上传于 @doc.CreatedAt.ToBeijingTime().ToString("yyyy-MM-dd HH:mm")</span>
                         </div>
                     </div>
                     <!-- 右侧：操作按钮 -->

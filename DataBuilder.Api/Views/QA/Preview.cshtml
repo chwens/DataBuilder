@@ -68,7 +68,7 @@
         </div>
         <div class="card-body">
             <p><strong>文件名：</strong>@Model.Document.FileName</p>
-            <p><strong>创建时间：</strong>@Model.Document.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</p>
+            <p><strong>创建时间：</strong>@Model.Document.CreatedAt.ToBeijingTime().ToString("yyyy-MM-dd HH:mm:ss")</p>
         </div>
     </div>
 
