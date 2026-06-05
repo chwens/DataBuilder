@@ -1,0 +1,14 @@
+@model (string DocumentName, int ChunkSequence, int QACount)
+@* QA 列表按 Chunk 分组的头部。
+   用于 QA/ProjectQuestions、QA/ProjectQAPairs、QA/Preview 共享。
+   "列即徽章"（视觉铁律 #8）：.chip chip-blue 展示 QACount *@
+<div class="card mb-3">
+    <div class="card-header bg-white d-flex align-items-center justify-content-between">
+        <div>
+            <i class="bi bi-file-earmark-text me-2 text-secondary"></i>
+            <strong>@Model.DocumentName</strong>
+            <span class="text-secondary ms-1">· 分段 #@Model.ChunkSequence</span>
+        </div>
+        <span class="chip chip-blue">@Model.QACount 条</span>
+    </div>
+</div>

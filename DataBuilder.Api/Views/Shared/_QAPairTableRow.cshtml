@@ -1,0 +1,56 @@
+@model QAPairRowViewModel
+@* 单行 QA 渲染。
+   通过 ShowCheckbox / ShowAnswer 切换不同列组合：
+   - ProjectQuestions：ShowCheckbox=false, ShowAnswer=false
+   - ProjectQAPairs：ShowCheckbox=true,  ShowAnswer=true
+   - Preview：       ShowCheckbox=true,  ShowAnswer=true
+   "选中行视觉指示"（视觉铁律 #8）：.qa-row.selected = 蓝条+浅蓝底双重指示 *@
+<tr class="qa-row @(Model.IsSelected ? "selected" : "")">
+    @if (Model.ShowCheckbox)
+    {
+        <td><input type="checkbox" class="qa-checkbox" value="@Model.QAPair.Id"></td>
+    }
+    <td>@Model.Index</td>
+    <td>
+        <div class="fw-semibold">@Model.QAPair.Instruction</div>
+        @if (!string.IsNullOrWhiteSpace(Model.QAPair.Input))
+        {
+            <div class="text-secondary small mt-1">
+                <i class="bi bi-arrow-return-right"></i>
+                @Model.QAPair.Input
+            </div>
+        }
+    </td>
+    @if (Model.ShowAnswer)
+    {
+        <td>
+            @if (Model.QAPair.Answered)
+            {
+                <div style="max-height: 6em; overflow: hidden; text-overflow: ellipsis;">
+                    @Model.QAPair.Output
+                </div>
+            }
+            else
+            {
+                <span class="text-secondary">— 待生成 —</span>
+            }
+        </td>
+    }
+    <td>
+        @if (Model.QAPair.Answered)
+        {
+            <span class="chip chip-green">已生成</span>
+        }
+        else
+        {
+            <span class="chip chip-orange">待生成</span>
+        }
+    </td>
+    <td>
+        <a asp-action="EditQuestion" asp-route-id="@Model.QAPair.Id" class="btn btn-sm btn-l4" title="编辑问题">编辑</a>
+        @if (Model.ShowAnswer && Model.QAPair.Answered)
+        {
+            <a asp-action="EditAnswer" asp-route-id="@Model.QAPair.Id" class="btn btn-sm btn-l4" title="编辑答案">答案</a>
+        }
+    </td>
+</tr>

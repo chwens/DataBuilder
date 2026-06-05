@@ -75,7 +75,14 @@
     <nav class="navbar navbar-dark top-navbar fixed-top">
         <div class="container-fluid d-flex align-items-center">
             <a class="navbar-brand" asp-controller="Home" asp-action="Index">
-                <span class="brand-icon"></span>
+                <span class="brand-icon" aria-hidden="true">
+                    <!-- 24×24 数据集堆积图（currentColor 主题色） -->
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="3" y="13" width="18" height="3" rx="1" fill="currentColor" opacity="0.4" />
+                        <rect x="3" y="8"  width="18" height="3" rx="1" fill="currentColor" opacity="0.7" />
+                        <rect x="3" y="3"  width="18" height="3" rx="1" fill="currentColor" />
+                    </svg>
+                </span>
                 <span class="brand-text">@SiteConfig.Value.AppName</span>
             </a>
             <div class="navbar-actions ms-auto">
@@ -154,6 +161,8 @@
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    @* HTMX 2.0 — 方案 B 核心：Settings 4 Tab 无刷新切换（~14KB gzip，CDN 引入） *@
+    <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.3/dist/htmx.min.js" crossorigin="anonymous"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>

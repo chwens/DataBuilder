@@ -139,8 +139,22 @@ public class ProjectController : Controller
         return RedirectToAction("Settings", new { id, tab = "model" });
     }
 
-    // GET: /Project/Settings/{id}?tab=basic|model|task|prompt
-    public async Task<IActionResult> Settings(int id, string? tab = null)
+    // 合法 Tab 白名单（防注入 / 不存在的 partial）
+    private static readonly HashSet<string> ValidSettingsTabs = new(StringComparer.OrdinalIgnoreCase)
+        { "basic", "model", "task", "prompt" };
+
+    // Tab 名 -> Partial 路径（位于 /Views/Project/Settings/ 子目录）
+    private static string TabToPartialPath(string tab) => tab.ToLowerInvariant() switch
+    {
+        "model"  => "Settings/_Model",
+        "task"   => "Settings/_Task",
+        "prompt" => "Settings/_Prompt",
+        _        => "Settings/_Basic",
+    };
+
+    // GET: /Project/Settings/{id}?tab=basic|model|task|prompt[&partial=true]
+    // HTMX 2.0 集成：HX-Request header 存在 或 ?partial=true 时返回对应 partial，否则返回完整 View。
+    public async Task<IActionResult> Settings(int id, string? tab = null, string? partial = null)
     {
         ViewData["ProjectId"] = id; // Phase 2C: 让 _Layout 渲染项目内 4 Tab 容器
 
@@ -152,7 +166,7 @@ public class ProjectController : Controller
 
         // 规范化 tab 参数
         var activeTab = (tab ?? "basic").ToLowerInvariant();
-        if (activeTab != "basic" && activeTab != "model" && activeTab != "task" && activeTab != "prompt")
+        if (!ValidSettingsTabs.Contains(activeTab))
         {
             activeTab = "basic";
         }
@@ -175,15 +189,36 @@ public class ProjectController : Controller
         var model = new ProjectSettingsViewModel
         {
             Project = project,
-            DefaultQuestionPrompt = DefaultTemplates.QuestionPrompt,
-            DefaultAnswerPrompt = DefaultTemplates.AnswerPrompt,
             EffectiveQuestionPrompt = project.QuestionPrompt ?? DefaultTemplates.QuestionPrompt,
             EffectiveAnswerPrompt = project.AnswerPrompt ?? DefaultTemplates.AnswerPrompt,
             LLMConfigs = llmConfigs,
             CurrentLLMConfig = currentConfig
         };
 
+        // HTMX 请求 或显式 partial=true：返回对应 partial（不含 _Layout）
+        var isHtmxRequest = string.Equals(
+            Request.Headers["HX-Request"], "true", StringComparison.OrdinalIgnoreCase);
+        if (isHtmxRequest || string.Equals(partial, "true", StringComparison.OrdinalIgnoreCase))
+        {
+            return PartialView(TabToPartialPath(activeTab), model);
+        }
+
         return View(model);
+    }
+
+    // GET: /Project/GetDefaultPrompt?kind=question|answer
+    // Phase E1 修复：原 DefaultPrompt 整段序列化进 Settings.cshtml 的 <script> 标签，
+    // 随 HTML 响应下发给所有用户（隐私/Payload 风险）。改为按需 fetch 端点。
+    [HttpGet]
+    public IActionResult GetDefaultPrompt(string kind)
+    {
+        string prompt = kind?.ToLowerInvariant() switch
+        {
+            "question" => DefaultTemplates.QuestionPrompt,
+            "answer" => DefaultTemplates.AnswerPrompt,
+            _ => string.Empty
+        };
+        return Json(new { prompt });
     }
 
     // POST: /Project/UpdateBasic/{id}

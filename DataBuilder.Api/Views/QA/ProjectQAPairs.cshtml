@@ -23,57 +23,56 @@
         </div>
     }
 
-    @* 项目信息头 *@
+    @* 项目信息头（标题+括号数字 · 视觉铁律 #6） *@
     <div class="card mb-3">
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <h4 class="mb-1">
                         <i class="bi bi-collection"></i>
-                        @Model.Project.Name — 数据集
+                        <span class="title-count">数据集<span class="count">(@Model.TotalCount)</span></span>
+                        <span class="text-secondary ms-2" style="font-size: 0.85rem; font-weight: 400;">@Model.Project.Name</span>
                     </h4>
-                    <p class="text-muted mb-0">
+                    <p class="text-secondary mb-0">
                         项目内所有问答对（QA pairs），按所属文档片段（Chunk）分组；可选择导出全部或选中条目。
                     </p>
                 </div>
                 <div class="text-end">
-                    <span class="badge bg-primary fs-6">@Model.TotalCount 条</span>
-                    <span class="badge bg-success fs-6 ms-1">@Model.AnsweredCount 条已回答</span>
+                    <span class="chip chip-blue">@Model.TotalCount 条</span>
+                    <span class="chip chip-green ms-1">@Model.AnsweredCount 条已回答</span>
                 </div>
             </div>
         </div>
     </div>
 
-    @* 类型筛选栏 + 批量导出操作 *@
-    <div class="card mb-3">
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <form method="get" class="d-flex align-items-center gap-2" id="filterForm">
-                    <input type="hidden" name="projectId" value="@projectId" />
-                    <label for="filterType" class="form-label mb-0">类型筛选：</label>
-                    <select name="filterType" id="filterType" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
-                        <option value="">全部类型</option>
-                        @foreach (var type in Model.TypeList)
+    @* 类型筛选栏 + 批量导出操作（sticky 操作栏 · 视觉铁律 #10） *@
+    <div class="toolbar-sticky">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <form method="get" class="d-flex align-items-center gap-2" id="filterForm">
+                <input type="hidden" name="projectId" value="@projectId" />
+                <label for="filterType" class="form-label mb-0 text-secondary">类型筛选：</label>
+                <select name="filterType" id="filterType" class="form-select form-select-sm col-control" style="width: auto;" onchange="this.form.submit()">
+                    <option value="">全部类型</option>
+                    @foreach (var type in Model.TypeList)
+                    {
+                        @if (type == Model.FilterType)
                         {
-                            @if (type == Model.FilterType)
-                            {
-                                <option value="@type" selected>@type</option>
-                            }
-                            else
-                            {
-                                <option value="@type">@type</option>
-                            }
+                            <option value="@type" selected>@type</option>
                         }
-                    </select>
-                </form>
-                <div class="d-flex gap-2">
-                    <button id="btnExportSelected" class="btn btn-sm btn-primary" disabled>
-                        <i class="bi bi-download"></i> 导出选中
-                    </button>
-                    <a asp-controller="Export" asp-action="Download" asp-route-projectId="@projectId" class="btn btn-sm btn-outline-secondary">
-                        <i class="bi bi-download"></i> 导出全部
-                    </a>
-                </div>
+                        else
+                        {
+                            <option value="@type">@type</option>
+                        }
+                    }
+                </select>
+            </form>
+            <div class="d-flex gap-2">
+                <button id="btnExportSelected" class="btn btn-l1" disabled>
+                    <i class="bi bi-download"></i> 导出选中
+                </button>
+                <a asp-controller="Export" asp-action="Download" asp-route-projectId="@projectId" class="btn btn-l2">
+                    <i class="bi bi-download"></i> 导出全部
+                </a>
             </div>
         </div>
     </div>
@@ -81,16 +80,7 @@
     @* 空状态 *@
     @if (!Model.QAPairs.Any())
     {
-        <div class="card mb-4">
-            <div class="card-body text-center py-5">
-                <i class="bi bi-collection" style="font-size: 3rem; color: #94a3b8;"></i>
-                <h5 class="mt-3 text-muted">该项目下还没有任何问答对</h5>
-                <p class="text-muted">请先到「问题」Tab 确认问题已生成，然后到「数据源」Tab 对待回答问题批量生成答案。</p>
-                <a asp-controller="Project" asp-action="Detail" asp-route-id="@projectId" class="btn btn-primary mt-2">
-                    <i class="bi bi-database"></i> 前往数据源
-                </a>
-            </div>
-        </div>
+        <partial name="_QAEmptyState" model="@(("bi-collection", "该项目下还没有任何问答对", "请先到「问题」Tab 确认问题已生成，然后到「数据源」Tab 对待回答问题批量生成答案。", $"/Project/Detail/{projectId}", "前往数据源"))" />
     }
     else
     {
@@ -105,15 +95,9 @@
             var chunk = firstQa.Chunk;
             var docFileName = chunk?.Document?.FileName ?? "(未知文档)";
 
+            <partial name="_QAGroupHeader" model="@((docFileName, chunk?.Sequence ?? 0, group.Count()))" />
+
             <div class="card mb-3">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <div>
-                        <i class="bi bi-file-earmark-text"></i>
-                        <strong>@docFileName</strong>
-                        <span class="text-muted ms-2">· 分段 #@(chunk?.Sequence ?? 0)</span>
-                    </div>
-                    <span class="badge bg-info">@group.Count() 条</span>
-                </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-hover mb-0">
@@ -123,7 +107,7 @@
                                     <th style="width: 60px;">序号</th>
                                     <th style="width: 30%;">问题</th>
                                     <th>答案</th>
-                                    <th style="width: 80px;">状态</th>
+                                    <th style="width: 100px;">状态</th>
                                     <th style="width: 180px;">操作</th>
                                 </tr>
                             </thead>
@@ -133,49 +117,15 @@
                                 }
                                 @foreach (var qa in group)
                                 {
-                                    <tr>
-                                        <td><input type="checkbox" class="qa-checkbox" value="@qa.Id"></td>
-                                        <td>@(index++)</td>
-                                        <td>
-                                            <div class="fw-semibold">@qa.Instruction</div>
-                                            @if (!string.IsNullOrWhiteSpace(qa.Input))
-                                            {
-                                                <div class="text-muted small mt-1">
-                                                    <i class="bi bi-arrow-return-right"></i>
-                                                    @qa.Input
-                                                </div>
-                                            }
-                                        </td>
-                                        <td>
-                                            @if (qa.Answered)
-                                            {
-                                                <div style="max-height: 6em; overflow: hidden; text-overflow: ellipsis;">
-                                                    @qa.Output
-                                                </div>
-                                            }
-                                            else
-                                            {
-                                                <span class="text-muted">— 待生成 —</span>
-                                            }
-                                        </td>
-                                        <td>
-                                            @if (qa.Answered)
-                                            {
-                                                <span class="badge bg-success">已回答</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="badge bg-warning text-dark">待生成</span>
-                                            }
-                                        </td>
-                                        <td>
-                                            <a asp-action="EditQuestion" asp-route-id="@qa.Id" class="btn btn-sm btn-outline-primary" title="编辑问题">编辑问题</a>
-                                            @if (qa.Answered)
-                                            {
-                                                <a asp-action="EditAnswer" asp-route-id="@qa.Id" class="btn btn-sm btn-outline-secondary" title="编辑答案">编辑答案</a>
-                                            }
-                                        </td>
-                                    </tr>
+                                    var rowModel = new QAPairRowViewModel
+                                    {
+                                        QAPair = qa,
+                                        Index = index++,
+                                        ShowCheckbox = true,
+                                        ShowAnswer = true,
+                                        IsSelected = false
+                                    };
+                                    <partial name="_QAPairTableRow" model="rowModel" />
                                 }
                             </tbody>
                         </table>

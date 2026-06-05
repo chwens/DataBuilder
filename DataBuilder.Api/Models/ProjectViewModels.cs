@@ -27,12 +27,6 @@ public class ProjectSettingsViewModel
     /// <summary>当前生效的答案生成 Prompt（已保存的自定义内容，或系统默认模板）</summary>
     public string EffectiveAnswerPrompt { get; set; } = string.Empty;
 
-    /// <summary>系统默认问题生成模板（含 {qaType}、{count} 占位符）</summary>
-    public string DefaultQuestionPrompt { get; set; } = string.Empty;
-
-    /// <summary>系统默认答案生成模板</summary>
-    public string DefaultAnswerPrompt { get; set; } = string.Empty;
-
     /// <summary>所有可用模型配置（Phase 3D: 模型配置 Tab 使用）</summary>
     public List<LLMConfig> LLMConfigs { get; set; } = new();
 

@@ -1,0 +1,61 @@
+@model ProjectSettingsViewModel
+
+<div class="card shadow-sm">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-pencil-square"></i> 提示词配置</h5>
+    </div>
+    <div class="card-body">
+        <p class="text-muted">
+            直接编辑 Prompt 模板，保存后对全项目生效。清空内容后保存则恢复使用系统默认模板。
+        </p>
+
+        <form asp-action="UpdatePrompt" asp-route-id="@Model.Project.Id" method="post">
+            @Html.AntiForgeryToken()
+
+            <div class="mb-4">
+                <label for="questionPrompt" class="form-label fw-bold">
+                    <i class="bi bi-question-circle"></i> 问题生成 Prompt
+                </label>
+                <textarea id="questionPrompt" name="questionPrompt" class="form-control custom-prompt-textarea" rows="14"
+                          placeholder="# Role: 文本问题生成专家 …">@Model.EffectiveQuestionPrompt</textarea>
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                    <div class="form-text mb-0">
+                        <i class="bi bi-info-circle"></i>
+                        可使用 <code>{qaType}</code> 和 <code>{count}</code> 作为运行时占位符。
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary reset-prompt-btn"
+                            data-kind="question">
+                        <i class="bi bi-arrow-counterclockwise"></i> 恢复默认
+                    </button>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label for="answerPrompt" class="form-label fw-bold">
+                    <i class="bi bi-chat-square-text"></i> 答案生成 Prompt
+                </label>
+                <textarea id="answerPrompt" name="answerPrompt" class="form-control custom-prompt-textarea" rows="14"
+                          placeholder="# Role: 微调数据集生成专家 …">@Model.EffectiveAnswerPrompt</textarea>
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                    <div class="form-text mb-0">
+                        <i class="bi bi-info-circle"></i>
+                        用于指导 LLM 根据 instruction 和文档段落生成对应的 output。
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary reset-prompt-btn"
+                            data-kind="answer">
+                        <i class="bi bi-arrow-counterclockwise"></i> 恢复默认
+                    </button>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-lg"></i> 保存提示词
+                </button>
+                <a asp-action="Detail" asp-route-id="@Model.Project.Id" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> 返回项目
+                </a>
+            </div>
+        </form>
+    </div>
+</div>

@@ -21,11 +21,16 @@
     </div>
 }
 
-<!-- 项目信息头卡片 -->
+<!-- 项目信息头卡片（标题+括号数字 · 视觉铁律 #6） -->
 <div class="project-header-card">
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
         <div class="flex-grow-1">
-            <h3 class="project-header-title">@Model.Project.Name</h3>
+            <h3 class="project-header-title">
+                @Model.Project.Name
+                <span class="title-count ms-2" style="font-size: 0.7em;">
+                    <span class="count">(ID #@Model.Project.Id)</span>
+                </span>
+            </h3>
             @if (!string.IsNullOrEmpty(Model.Project.Description))
             {
                 <p class="project-header-desc">@Model.Project.Description</p>
@@ -36,39 +41,39 @@
             </div>
         </div>
         <div class="d-flex gap-2 flex-shrink-0">
-            <a asp-action="Settings" asp-route-id="@Model.Project.Id" asp-route-tab="model" class="btn btn-outline-secondary btn-sm">
+            <a asp-action="Settings" asp-route-id="@Model.Project.Id" asp-route-tab="model" class="btn btn-l4">
                 <i class="bi bi-cpu"></i> 模型设置
             </a>
-            <a asp-action="Settings" asp-route-id="@Model.Project.Id" class="btn btn-outline-secondary btn-sm">
+            <a asp-action="Settings" asp-route-id="@Model.Project.Id" class="btn btn-l4">
                 <i class="bi bi-gear"></i> 项目设置
             </a>
             <form asp-action="Delete" asp-route-id="@Model.Project.Id" method="post"
                   onsubmit="return confirm('确定删除该项目及其所有数据吗？此操作不可撤销。');">
-                <button type="submit" class="btn btn-outline-danger btn-sm">
+                <button type="submit" class="btn btn-l3-danger">
                     <i class="bi bi-trash3"></i> 删除项目
                 </button>
             </form>
         </div>
     </div>
     <div class="d-flex align-items-center gap-2 mt-2 pt-2 border-top">
-        <span class="text-muted" style="font-size:0.85rem;">
+        <span class="text-secondary" style="font-size:0.85rem;">
             <i class="bi bi-cpu"></i> 当前模型：
         </span>
         @if (currentLLM != null)
         {
-            <span class="badge bg-light text-dark">
+            <span class="chip chip-purple">
                 @currentLLM.ModelName (@currentLLM.Provider) — @currentLLM.ModelLabel
             </span>
             @if (currentLLM.IsDeleted)
             {
-                <span class="badge bg-danger">
+                <span class="chip chip-red">
                     <i class="bi bi-exclamation-triangle"></i> 模型已失效
                 </span>
             }
         }
         else
         {
-            <span class="badge bg-warning text-dark">
+            <span class="chip chip-orange">
                 <i class="bi bi-exclamation-triangle"></i> 未选择模型
             </span>
         }
@@ -78,36 +83,31 @@
     </div>
 </div>
 
-<!-- 文档区域：标题 + 上传按钮 -->
-<div class="section-header">
-    <h4 class="section-header-title">
-        <input type="checkbox" class="form-check-input me-2" id="selectAllDocs" style="margin:0;width:1rem;height:1rem;cursor:pointer">
-        <i class="bi bi-file-earmark-text"></i> 文档列表
-        @if (Model.Documents.Any())
-        {
-            <span class="section-header-count">@Model.Documents.Count()</span>
-        }
-    </h4>
-    <div class="d-flex gap-2">
-        <button type="button" id="btnBatchDelete" class="btn btn-outline-danger btn-sm d-none" onclick="batchDeleteDocs()">
-            <i class="bi bi-trash3"></i> 批量删除
-        </button>
-        <a asp-controller="Document" asp-action="Upload" asp-route-projectId="@Model.Project.Id" class="btn btn-primary">
-            <i class="bi bi-cloud-upload"></i> 上传文档
-        </a>
+<!-- 文档区域：标题 + 操作（sticky 操作栏 · 视觉铁律 #10） -->
+<div class="toolbar-sticky">
+    <div class="d-flex justify-content-between align-items-center">
+        <h4 class="section-header-title">
+            <input type="checkbox" class="form-check-input me-2" id="selectAllDocs" style="margin:0;width:1rem;height:1rem;cursor:pointer">
+            <i class="bi bi-file-earmark-text"></i> 文档列表
+            @if (Model.Documents.Any())
+            {
+                <span class="section-header-count">@Model.Documents.Count()</span>
+            }
+        </h4>
+        <div class="d-flex gap-2">
+            <button type="button" id="btnBatchDelete" class="btn btn-l3-danger d-none" onclick="batchDeleteDocs()">
+                <i class="bi bi-trash3"></i> 批量删除
+            </button>
+            <a asp-controller="Document" asp-action="Upload" asp-route-projectId="@Model.Project.Id" class="btn btn-l1">
+                <i class="bi bi-cloud-upload"></i> 上传文档
+            </a>
+        </div>
     </div>
 </div>
 
 @if (!Model.Documents.Any())
 {
-    <div class="empty-state">
-        <i class="bi bi-inbox"></i>
-        <h3>暂无文档</h3>
-        <p class="text-muted">点击"上传文档"按钮添加 .md 或 .txt 文件，开始构建数据集。</p>
-        <a asp-controller="Document" asp-action="Upload" asp-route-projectId="@Model.Project.Id" class="btn btn-primary mt-3">
-            <i class="bi bi-cloud-upload"></i> 上传第一篇文档
-        </a>
-    </div>
+    <partial name="_QAEmptyState" model="@(("bi-inbox", "暂无文档", "点击\"上传文档\"按钮添加 .md 或 .txt 文件，开始构建数据集。", $"/Document/Upload?projectId={Model.Project.Id}", "上传第一篇文档"))" />
 }
 else
 {
@@ -129,22 +129,22 @@ else
                             @switch (doc.Status)
                             {
                                 case DocumentStatus.Uploaded:
-                                    <span class="badge bg-secondary bg-opacity-10 text-secondary doc-badge">已上传</span>
+                                    <span class="chip chip-gray">已上传</span>
                                     break;
                                 case DocumentStatus.Parsing:
-                                    <span class="badge bg-warning bg-opacity-10 text-warning doc-badge">解析中</span>
+                                    <span class="chip chip-orange">解析中</span>
                                     break;
                                 case DocumentStatus.Parsed:
-                                    <span class="badge bg-info bg-opacity-10 text-info doc-badge">已解析</span>
+                                    <span class="chip chip-blue">已解析</span>
                                     break;
                                 case DocumentStatus.Generating:
-                                    <span class="badge bg-warning bg-opacity-10 text-warning doc-badge">生成中</span>
+                                    <span class="chip chip-orange">生成中</span>
                                     break;
                                 case DocumentStatus.Done:
-                                    <span class="badge bg-success bg-opacity-10 text-success doc-badge">已生成</span>
+                                    <span class="chip chip-green">已生成</span>
                                     break;
                                 default:
-                                    <span class="badge bg-light text-dark doc-badge">@doc.Status</span>
+                                    <span class="chip chip-gray">@doc.Status</span>
                                     break;
                             }
                         </div>
@@ -177,11 +177,11 @@ else
 
 <!-- 底部操作 -->
 <div class="mt-4 d-flex gap-2">
-    <a asp-controller="Export" asp-action="Download" asp-route-projectId="@Model.Project.Id" class="btn btn-success">
+    <a asp-controller="Export" asp-action="Download" asp-route-projectId="@Model.Project.Id" class="btn btn-l1">
         <i class="bi bi-download"></i> 导出数据集
     </a>
     <a asp-controller="QA" asp-action="ProjectQAPairs" asp-route-projectId="@Model.Project.Id"
-       class="btn btn-outline-primary">
+       class="btn btn-l2">
         <i class="bi bi-eye"></i> 查看所有问答
     </a>
 </div>

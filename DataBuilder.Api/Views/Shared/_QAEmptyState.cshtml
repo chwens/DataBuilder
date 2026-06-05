@@ -1,0 +1,13 @@
+@model (string Icon, string Title, string Description, string ActionUrl, string ActionText)
+@* 空状态。
+   用于 QA/ProjectQuestions、QA/ProjectQAPairs、QA/Preview 共享。
+   若 ActionUrl 为空则不显示引导按钮 *@
+<div class="empty-state">
+    <i class="bi @Model.Icon"></i>
+    <h3 class="h5 mt-3">@Model.Title</h3>
+    <p class="text-secondary">@Model.Description</p>
+    @if (!string.IsNullOrEmpty(Model.ActionUrl))
+    {
+        <a href="@Model.ActionUrl" class="btn btn-l1 mt-3">@Model.ActionText</a>
+    }
+</div>

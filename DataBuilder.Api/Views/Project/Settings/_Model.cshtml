@@ -1,0 +1,57 @@
+@model ProjectSettingsViewModel
+
+<div class="card shadow-sm">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-cpu"></i> 模型配置</h5>
+    </div>
+    <div class="card-body">
+        <p class="text-muted">
+            选择该项目使用的 LLM 模型配置。修改后，生成问答对时会使用新模型。
+        </p>
+
+        @if (!Model.LLMConfigs.Any())
+        {
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i>
+                暂无可用模型配置，请先在顶部导航「模型配置」中创建。
+            </div>
+        }
+        else
+        {
+            <form asp-action="UpdateLLMConfigTab" asp-route-id="@Model.Project.Id" method="post">
+                @Html.AntiForgeryToken()
+
+                <div class="mb-3">
+                    <label for="llmConfigId" class="form-label fw-bold">
+                        <i class="bi bi-cpu"></i> 当前模型
+                    </label>
+                    <select id="llmConfigId" name="llmConfigId" class="form-select" required>
+                        <option value="">-- 请选择模型 --</option>
+                        @foreach (var cfg in Model.LLMConfigs)
+                        {
+                            var selected = cfg.Id == Model.Project.LLMConfigId;
+                            <option value="@cfg.Id" selected="@(selected ? "selected" : null)">
+                                @cfg.ModelName (@cfg.Provider) — @cfg.ModelLabel
+                            </option>
+                        }
+                    </select>
+                    @if (Model.CurrentLLMConfig != null && Model.CurrentLLMConfig.IsDeleted)
+                    {
+                        <div class="text-danger mt-2">
+                            <i class="bi bi-exclamation-triangle"></i> 模型已失效，请重新选择
+                        </div>
+                    }
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> 保存模型
+                    </button>
+                    <a asp-action="Detail" asp-route-id="@Model.Project.Id" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> 返回项目
+                    </a>
+                </div>
+            </form>
+        }
+    </div>
+</div>

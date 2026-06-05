@@ -1,0 +1,81 @@
+@model ProjectSettingsViewModel
+
+<div class="card shadow-sm">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-sliders"></i> 任务配置</h5>
+    </div>
+    <div class="card-body">
+        <p class="text-muted">
+            调整文档分块参数与问答生成策略。修改后对该项目后续解析与生成生效。
+        </p>
+
+        <form asp-action="UpdateTaskConfig" asp-route-id="@Model.Project.Id" method="post" id="taskConfigForm">
+            @Html.AntiForgeryToken()
+
+            <div class="mb-4">
+                <label for="chunkMinLength" class="form-label fw-bold">
+                    最小段落长度 <span class="badge bg-primary ms-2" id="chunkMinLengthBadge">@Model.Project.ChunkMinLength</span>
+                </label>
+                <input type="range" class="form-range task-config-slider" id="chunkMinLength" name="chunkMinLength"
+                       min="100" max="5000" step="100" value="@Model.Project.ChunkMinLength"
+                       data-target="chunkMinLengthBadge" />
+                <div class="d-flex justify-content-between form-text">
+                    <span>100</span>
+                    <span>5000</span>
+                </div>
+                <div class="form-text">按段落分段时，累计段落达到该值后才允许切分。</div>
+            </div>
+
+            <div class="mb-4">
+                <label for="chunkMaxLength" class="form-label fw-bold">
+                    最大段落长度 <span class="badge bg-primary ms-2" id="chunkMaxLengthBadge">@Model.Project.ChunkMaxLength</span>
+                </label>
+                <input type="range" class="form-range task-config-slider" id="chunkMaxLength" name="chunkMaxLength"
+                       min="1000" max="8000" step="100" value="@Model.Project.ChunkMaxLength"
+                       data-target="chunkMaxLengthBadge" />
+                <div class="d-flex justify-content-between form-text">
+                    <span>1000</span>
+                    <span>8000</span>
+                </div>
+                <div class="form-text">按段落分段时，累计段落达到该值时强制切分；按固定长度分段时，作为每段字符数。</div>
+            </div>
+
+            <div class="mb-4">
+                <label for="charsPerQuestion" class="form-label fw-bold">
+                    字符/问题比 <span class="badge bg-primary ms-2" id="charsPerQuestionBadge">@Model.Project.CharsPerQuestion</span>
+                </label>
+                <input type="range" class="form-range task-config-slider" id="charsPerQuestion" name="charsPerQuestion"
+                       min="100" max="500" step="10" value="@Model.Project.CharsPerQuestion"
+                       data-target="charsPerQuestionBadge" />
+                <div class="d-flex justify-content-between form-text">
+                    <span>100（更密集）</span>
+                    <span>500（更稀疏）</span>
+                </div>
+                <div class="form-text">每多少个字符生成一个问题。值越小生成的问题越多。</div>
+            </div>
+
+            <div class="mb-4">
+                <label for="questionMarkRemovalRate" class="form-label fw-bold">
+                    问号去除率 <span class="badge bg-primary ms-2" id="questionMarkRemovalRateBadge">@Model.Project.QuestionMarkRemovalRate%</span>
+                </label>
+                <input type="range" class="form-range task-config-slider" id="questionMarkRemovalRate" name="questionMarkRemovalRate"
+                       min="0" max="100" step="5" value="@Model.Project.QuestionMarkRemovalRate"
+                       data-target="questionMarkRemovalRateBadge" data-suffix="%" />
+                <div class="d-flex justify-content-between form-text">
+                    <span>0%（不去除）</span>
+                    <span>100%（全部去除）</span>
+                </div>
+                <div class="form-text">去除问题末尾问号的比例。</div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-lg"></i> 保存任务配置
+                </button>
+                <a asp-action="Detail" asp-route-id="@Model.Project.Id" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> 返回项目
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
