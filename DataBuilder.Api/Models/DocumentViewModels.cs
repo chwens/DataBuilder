@@ -12,4 +12,5 @@ public class DocumentChunksViewModel
 {
     public Document Document { get; set; } = null!;
     public List<Chunk> Chunks { get; set; } = new();
+    public int ProjectChunkMaxLength { get; set; } = 4000;
 }

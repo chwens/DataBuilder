@@ -1,0 +1,172 @@
+@model ProjectQAViewModel
+@using DataBuilder.Core.Entities
+@{
+    ViewData["Title"] = $"问题管理 - {Model.Project.Name}";
+    var projectId = Model.Project.Id;
+}
+
+<div class="container-fluid">
+
+    @if (TempData["Message"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @TempData["Message"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (TempData["ErrorMessage"] is string errMsg)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle"></i> @errMsg
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @* 项目信息头 *@
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h4 class="mb-1">
+                        <i class="bi bi-question-circle"></i>
+                        @Model.Project.Name — 问题列表
+                    </h4>
+                    <p class="text-muted mb-0">
+                        跨项目内所有文档生成的问题，按所属文档片段（Chunk）分组。
+                    </p>
+                </div>
+                <div class="text-end">
+                    <span class="badge bg-primary fs-6">共 @Model.TotalCount 条问题</span>
+                    @if (Model.AnsweredCount > 0)
+                    {
+                        <span class="badge bg-success fs-6 ms-1">@Model.AnsweredCount 条已生成答案</span>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* 类型筛选栏 *@
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center">
+                <form method="get" class="d-flex align-items-center gap-2">
+                    <input type="hidden" name="projectId" value="@projectId" />
+                    <label for="filterType" class="form-label mb-0">类型筛选：</label>
+                    <select name="filterType" id="filterType" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                        <option value="">全部类型</option>
+                        @foreach (var type in Model.TypeList)
+                        {
+                            @if (type == Model.FilterType)
+                            {
+                                <option value="@type" selected>@type</option>
+                            }
+                            else
+                            {
+                                <option value="@type">@type</option>
+                            }
+                        }
+                    </select>
+                </form>
+                <a asp-controller="QA" asp-action="ProjectQAPairs" asp-route-projectId="@projectId"
+                   class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-collection"></i> 前往数据集 Tab
+                </a>
+            </div>
+        </div>
+    </div>
+
+    @* 空状态：未生成问题 *@
+    @if (!Model.QAPairs.Any())
+    {
+        <div class="card mb-4">
+            <div class="card-body text-center py-5">
+                <i class="bi bi-question-circle" style="font-size: 3rem; color: #94a3b8;"></i>
+                <h5 class="mt-3 text-muted">该项目下还没有任何问题</h5>
+                <p class="text-muted">请到「数据源」Tab 选择文档生成问题。生成完成后，问题会按文档片段（Chunk）显示在此页面。</p>
+                <a asp-controller="Project" asp-action="Detail" asp-route-id="@projectId" class="btn btn-primary mt-2">
+                    <i class="bi bi-database"></i> 前往数据源
+                </a>
+            </div>
+        </div>
+    }
+    else
+    {
+        @* 按 Chunk 分组渲染问题列表 *@
+        var grouped = Model.QAPairs
+            .GroupBy(q => q.ChunkId)
+            .OrderBy(g => g.Key);
+
+        @foreach (var group in grouped)
+        {
+            var firstQa = group.First();
+            var chunk = firstQa.Chunk;
+            var docFileName = chunk?.Document?.FileName ?? "(未知文档)";
+
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="bi bi-file-earmark-text"></i>
+                        <strong>@docFileName</strong>
+                        <span class="text-muted ms-2">· 分段 #@(chunk?.Sequence ?? 0)</span>
+                    </div>
+                    <span class="badge bg-info">@group.Count() 条</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 60px;">序号</th>
+                                    <th>问题</th>
+                                    <th style="width: 100px;">类型</th>
+                                    <th style="width: 80px;">状态</th>
+                                    <th style="width: 120px;">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @{
+                                    int index = 1;
+                                }
+
+                                @foreach (var qa in group)
+                                {
+                                    <tr>
+                                        <td>@(index++)</td>
+                                        <td>
+                                            <div class="fw-semibold">@qa.Instruction</div>
+                                            @if (!string.IsNullOrWhiteSpace(qa.Input))
+                                            {
+                                                <div class="text-muted small mt-1">
+                                                    <i class="bi bi-arrow-return-right"></i>
+                                                    @qa.Input
+                                                </div>
+                                            }
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary">@qa.Type</span>
+                                        </td>
+                                        <td>
+                                            @if (qa.Answered)
+                                            {
+                                                <span class="badge bg-success">已回答</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-warning text-dark">待生成</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <a asp-action="EditQuestion" asp-route-id="@qa.Id" class="btn btn-sm btn-outline-primary" title="编辑问题">编辑问题</a>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>

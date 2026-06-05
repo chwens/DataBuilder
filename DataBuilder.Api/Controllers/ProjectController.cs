@@ -61,11 +61,6 @@ public class ProjectController : Controller
             return NotFound();
         }
 
-        var llmConfigs = await _db.LLMConfigs
-            .OrderBy(c => c.Provider)
-            .ThenBy(c => c.ModelName)
-            .ToListAsync();
-
         LLMConfig? currentConfig = null;
         if (project.LLMConfigId != null)
         {
@@ -74,8 +69,8 @@ public class ProjectController : Controller
                 .FirstOrDefaultAsync(c => c.Id == project.LLMConfigId);
         }
 
-        ViewData["LLMConfigs"] = llmConfigs;
         ViewData["CurrentLLMConfig"] = currentConfig;
+        ViewData["ProjectId"] = id; // Phase 2C: 让 _Layout 渲染项目内 4 Tab 容器
 
         var model = new ProjectDetailViewModel
         {
@@ -104,24 +99,35 @@ public class ProjectController : Controller
     }
 
     // POST: /Project/UpdateLLMConfig/{id}
+    // Phase 3D: 保留向后兼容（虽然 Detail 页面已移除 LLMConfig 切换 UI，但保留 Action 不删除）
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateLLMConfig(int id, int? llmConfigId)
     {
+        return await UpdateLLMConfigTab(id, llmConfigId);
+    }
+
+    // POST: /Project/UpdateLLMConfigTab/{id}
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateLLMConfigTab(int id, int? llmConfigId)
+    {
+        ViewData["ProjectId"] = id; // Phase 2C: 让 _Layout 渲染项目内 4 Tab 容器
+
         var project = await _db.Projects.FindAsync(id);
         if (project == null) return NotFound();
 
         if (llmConfigId == null)
         {
             TempData["ErrorMessage"] = "请选择一个模型配置，不再支持默认模型。";
-            return RedirectToAction("Detail", new { id });
+            return RedirectToAction("Settings", new { id, tab = "model" });
         }
 
         var configExists = await _db.LLMConfigs.AnyAsync(c => c.Id == llmConfigId.Value);
         if (!configExists)
         {
             TempData["ErrorMessage"] = "所选模型配置不存在或已被删除。";
-            return RedirectToAction("Detail", new { id });
+            return RedirectToAction("Settings", new { id, tab = "model" });
         }
 
         project.LLMConfigId = llmConfigId;
@@ -130,16 +136,40 @@ public class ProjectController : Controller
 
         TempData["SuccessMessage"] = "模型配置已更新。";
 
-        return RedirectToAction("Detail", new { id });
+        return RedirectToAction("Settings", new { id, tab = "model" });
     }
 
-    // GET: /Project/Settings/{id}
-    public async Task<IActionResult> Settings(int id)
+    // GET: /Project/Settings/{id}?tab=basic|model|task|prompt
+    public async Task<IActionResult> Settings(int id, string? tab = null)
     {
+        ViewData["ProjectId"] = id; // Phase 2C: 让 _Layout 渲染项目内 4 Tab 容器
+
         var project = await _db.Projects.FindAsync(id);
         if (project == null)
         {
             return NotFound();
+        }
+
+        // 规范化 tab 参数
+        var activeTab = (tab ?? "basic").ToLowerInvariant();
+        if (activeTab != "basic" && activeTab != "model" && activeTab != "task" && activeTab != "prompt")
+        {
+            activeTab = "basic";
+        }
+        ViewBag.ActiveTab = activeTab;
+
+        // 模型配置 Tab 需要 LLMConfigs 列表
+        var llmConfigs = await _db.LLMConfigs
+            .OrderBy(c => c.Provider)
+            .ThenBy(c => c.ModelName)
+            .ToListAsync();
+
+        LLMConfig? currentConfig = null;
+        if (project.LLMConfigId != null)
+        {
+            currentConfig = await _db.LLMConfigs
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(c => c.Id == project.LLMConfigId);
         }
 
         var model = new ProjectSettingsViewModel
@@ -148,10 +178,109 @@ public class ProjectController : Controller
             DefaultQuestionPrompt = DefaultTemplates.QuestionPrompt,
             DefaultAnswerPrompt = DefaultTemplates.AnswerPrompt,
             EffectiveQuestionPrompt = project.QuestionPrompt ?? DefaultTemplates.QuestionPrompt,
-            EffectiveAnswerPrompt = project.AnswerPrompt ?? DefaultTemplates.AnswerPrompt
+            EffectiveAnswerPrompt = project.AnswerPrompt ?? DefaultTemplates.AnswerPrompt,
+            LLMConfigs = llmConfigs,
+            CurrentLLMConfig = currentConfig
         };
 
         return View(model);
+    }
+
+    // POST: /Project/UpdateBasic/{id}
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateBasic(int id, string name, string? description)
+    {
+        ViewData["ProjectId"] = id;
+
+        var project = await _db.Projects.FindAsync(id);
+        if (project == null)
+        {
+            return NotFound();
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            TempData["ErrorMessage"] = "项目名称不能为空。";
+            return RedirectToAction("Settings", new { id, tab = "basic" });
+        }
+
+        if (name.Length > 200)
+        {
+            TempData["ErrorMessage"] = "项目名称不能超过 200 个字符。";
+            return RedirectToAction("Settings", new { id, tab = "basic" });
+        }
+
+        if (description != null && description.Length > 1000)
+        {
+            TempData["ErrorMessage"] = "项目描述不能超过 1000 个字符。";
+            return RedirectToAction("Settings", new { id, tab = "basic" });
+        }
+
+        project.Name = name.Trim();
+        project.Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+        project.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        TempData["SuccessMessage"] = "基本信息已更新。";
+
+        return RedirectToAction("Settings", new { id, tab = "basic" });
+    }
+
+    // POST: /Project/UpdateTaskConfig/{id}
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateTaskConfig(int id,
+        int chunkMinLength,
+        int chunkMaxLength,
+        int charsPerQuestion,
+        int questionMarkRemovalRate)
+    {
+        ViewData["ProjectId"] = id;
+
+        var project = await _db.Projects.FindAsync(id);
+        if (project == null)
+        {
+            return NotFound();
+        }
+
+        // 范围校验（与前端 Slider 范围保持一致）
+        if (chunkMinLength < 100 || chunkMinLength > 5000)
+        {
+            TempData["ErrorMessage"] = "最小段落长度必须在 100 ~ 5000 之间。";
+            return RedirectToAction("Settings", new { id, tab = "task" });
+        }
+        if (chunkMaxLength < 1000 || chunkMaxLength > 8000)
+        {
+            TempData["ErrorMessage"] = "最大段落长度必须在 1000 ~ 8000 之间。";
+            return RedirectToAction("Settings", new { id, tab = "task" });
+        }
+        if (chunkMinLength >= chunkMaxLength)
+        {
+            TempData["ErrorMessage"] = "最小段落长度必须小于最大段落长度。";
+            return RedirectToAction("Settings", new { id, tab = "task" });
+        }
+        if (charsPerQuestion < 100 || charsPerQuestion > 500)
+        {
+            TempData["ErrorMessage"] = "字符/问题比必须在 100 ~ 500 之间。";
+            return RedirectToAction("Settings", new { id, tab = "task" });
+        }
+        if (questionMarkRemovalRate < 0 || questionMarkRemovalRate > 100)
+        {
+            TempData["ErrorMessage"] = "问号去除率必须在 0 ~ 100 之间。";
+            return RedirectToAction("Settings", new { id, tab = "task" });
+        }
+
+        project.ChunkMinLength = chunkMinLength;
+        project.ChunkMaxLength = chunkMaxLength;
+        project.CharsPerQuestion = charsPerQuestion;
+        project.QuestionMarkRemovalRate = questionMarkRemovalRate;
+        project.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        TempData["SuccessMessage"] = "任务配置已更新。";
+
+        return RedirectToAction("Settings", new { id, tab = "task" });
     }
 
     // POST: /Project/UpdatePrompt/{id}
@@ -159,6 +288,8 @@ public class ProjectController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdatePrompt(int id, string? questionPrompt, string? answerPrompt)
     {
+        ViewData["ProjectId"] = id; // Phase 2C: 让 _Layout 渲染项目内 4 Tab 容器
+
         var project = await _db.Projects.FindAsync(id);
         if (project == null)
         {
@@ -171,7 +302,9 @@ public class ProjectController : Controller
 
         await _db.SaveChangesAsync();
 
-        return RedirectToAction("Settings", new { id });
+        TempData["SuccessMessage"] = "提示词已更新。";
+
+        return RedirectToAction("Settings", new { id, tab = "prompt" });
     }
 }
 

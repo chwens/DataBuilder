@@ -30,6 +30,9 @@ public class QAController : Controller
         if (document == null)
             return NotFound();
 
+        // Phase 2C: 让 _Layout 渲染项目内 4 Tab 容器
+        ViewData["ProjectId"] = document.ProjectId;
+
         var query = _db.QAPairs
             .Include(q => q.Chunk)
             .Where(q => q.Chunk!.DocumentId == documentId);
@@ -56,9 +59,14 @@ public class QAController : Controller
         return View(vm);
     }
 
-    // GET /QA/ProjectPreview/{projectId}
-    public async Task<IActionResult> ProjectPreview(int projectId, string? filterType = null)
+    // GET /QA/ProjectQuestions/{projectId}
+    /// <summary>
+    /// 项目级「问题」Tab 内容：只显示问题（不显示 output），按 Chunk 分组。
+    /// </summary>
+    public async Task<IActionResult> ProjectQuestions(int projectId, string? filterType = null)
     {
+        ViewData["ProjectId"] = projectId; // Phase 2C: 让 _Layout 渲染项目内 4 Tab 容器
+
         var project = await _db.Projects
             .Include(p => p.Documents)
             .FirstOrDefaultAsync(p => p.Id == projectId);
@@ -76,29 +84,74 @@ public class QAController : Controller
             query = query.Where(q => q.Type == filterType);
 
         var qaPairs = await query
-            .OrderBy(q => q.Id)
+            .OrderBy(q => q.ChunkId)
+            .ThenBy(q => q.Id)
             .ToListAsync();
 
-        // 取第一个文档作为 ViewModel 的 Document 上下文
-        var firstDocument = project.Documents.OrderBy(d => d.Id).FirstOrDefault()
-            ?? new Document { Id = 0, FileName = project.Name };
-
-        var vm = new QAPreviewViewModel
+        var vm = new ProjectQAViewModel
         {
-            Document = firstDocument,
+            Project = project,
             QAPairs = qaPairs,
-            QaType = "Factoid",
-            CountPerChunk = 3,
             FilterType = filterType,
-            TypeList = new List<string> { "Factoid", "Reasoning", "Summary" },
             TotalCount = qaPairs.Count,
-            AnsweredCount = qaPairs.Count(q => q.Answered)
+            AnsweredCount = qaPairs.Count(q => q.Answered),
+            QuestionsOnly = true
         };
 
-        ViewData["ProjectId"] = projectId;
-        ViewData["IsProjectView"] = true;
+        return View(vm);
+    }
 
-        return View("Preview", vm);
+    // GET /QA/ProjectQAPairs/{projectId}
+    /// <summary>
+    /// 项目级「数据集」Tab 内容：完整 QA 对（含 output），按 Chunk 分组，含导出。
+    /// </summary>
+    public async Task<IActionResult> ProjectQAPairs(int projectId, string? filterType = null)
+    {
+        ViewData["ProjectId"] = projectId; // Phase 2C: 让 _Layout 渲染项目内 4 Tab 容器
+
+        var project = await _db.Projects
+            .Include(p => p.Documents)
+            .FirstOrDefaultAsync(p => p.Id == projectId);
+
+        if (project == null)
+            return NotFound();
+
+        var documentIds = project.Documents.Select(d => d.Id).ToList();
+
+        var query = _db.QAPairs
+            .Include(q => q.Chunk)
+            .Where(q => documentIds.Contains(q.Chunk!.DocumentId));
+
+        if (!string.IsNullOrEmpty(filterType))
+            query = query.Where(q => q.Type == filterType);
+
+        var qaPairs = await query
+            .OrderBy(q => q.ChunkId)
+            .ThenBy(q => q.Id)
+            .ToListAsync();
+
+        var vm = new ProjectQAViewModel
+        {
+            Project = project,
+            QAPairs = qaPairs,
+            FilterType = filterType,
+            TotalCount = qaPairs.Count,
+            AnsweredCount = qaPairs.Count(q => q.Answered),
+            QuestionsOnly = false
+        };
+
+        return View(vm);
+    }
+
+    // GET /QA/ProjectPreview/{projectId}
+    /// <summary>
+    /// [已弃用] Phase 2C 起 QA 项目级预览拆为「问题」/「数据集」两个 Tab。
+    /// 旧 Action 保留 1-2 个版本以防外部链接断链，重定向到新数据集 Tab。
+    /// </summary>
+    [Obsolete("ProjectPreview 已拆为 ProjectQuestions / ProjectQAPairs 两个 Action，请使用新接口。")]
+    public IActionResult ProjectPreview(int projectId, string? filterType = null)
+    {
+        return RedirectToAction(nameof(ProjectQAPairs), new { projectId, filterType });
     }
 
     // POST /QA/GenerateQuestions
@@ -289,10 +342,14 @@ public class QAController : Controller
     public async Task<IActionResult> EditQuestion(int id)
     {
         var qaPair = await _db.QAPairs
-            .Include(q => q.Chunk)
+            .Include(q => q.Chunk)!
+            .ThenInclude(c => c!.Document)
             .FirstOrDefaultAsync(q => q.Id == id);
         if (qaPair == null)
             return NotFound();
+
+        // Phase 2C: 让 _Layout 渲染项目内 4 Tab 容器
+        ViewData["ProjectId"] = qaPair.Chunk?.Document?.ProjectId;
 
         var vm = new QAEditViewModel
         {
@@ -325,10 +382,14 @@ public class QAController : Controller
     public async Task<IActionResult> EditAnswer(int id)
     {
         var qaPair = await _db.QAPairs
-            .Include(q => q.Chunk)
+            .Include(q => q.Chunk)!
+            .ThenInclude(c => c!.Document)
             .FirstOrDefaultAsync(q => q.Id == id);
         if (qaPair == null)
             return NotFound();
+
+        // Phase 2C: 让 _Layout 渲染项目内 4 Tab 容器
+        ViewData["ProjectId"] = qaPair.Chunk?.Document?.ProjectId;
 
         var vm = new QAEditViewModel
         {

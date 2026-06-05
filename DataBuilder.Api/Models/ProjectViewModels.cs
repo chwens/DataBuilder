@@ -32,4 +32,10 @@ public class ProjectSettingsViewModel
 
     /// <summary>系统默认答案生成模板</summary>
     public string DefaultAnswerPrompt { get; set; } = string.Empty;
+
+    /// <summary>所有可用模型配置（Phase 3D: 模型配置 Tab 使用）</summary>
+    public List<LLMConfig> LLMConfigs { get; set; } = new();
+
+    /// <summary>当前生效的模型配置（含已软删除的，用于"已失效"提示）</summary>
+    public LLMConfig? CurrentLLMConfig { get; set; }
 }

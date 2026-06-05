@@ -13,6 +13,7 @@ public interface IDocumentParser
     /// <param name="fileName">文件名（用于判断格式）</param>
     /// <param name="content">原始文本内容</param>
     /// <param name="strategy">分段策略: Heading / Paragraph / FixedLength</param>
-    /// <param name="chunkSize">FixedLength 策略时每段字符数</param>
-    List<Chunk> Parse(string fileName, string content, string strategy = "Heading", int chunkSize = 2000);
+    /// <param name="chunkSize">FixedLength 策略时每段字符数；Paragraph 策略时作为最大长度上限</param>
+    /// <param name="chunkMinLength">Paragraph 策略时强制切分前的最小累积长度（默认 2000）</param>
+    List<Chunk> Parse(string fileName, string content, string strategy = "Heading", int chunkSize = 2000, int chunkMinLength = 2000);
 }

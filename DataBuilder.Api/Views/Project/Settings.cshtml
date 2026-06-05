@@ -1,78 +1,319 @@
 @model ProjectSettingsViewModel
 @using System.Text.Json
+@using DataBuilder.Core.Entities
 @{
-    ViewData["Title"] = $"Prompt 设置 - {Model.Project.Name}";
+    ViewData["Title"] = $"项目设置 - {Model.Project.Name}";
+    var activeTab = (ViewBag.ActiveTab as string ?? "basic").ToLowerInvariant();
+    var successMessage = TempData["SuccessMessage"] as string;
+    var errorMessage = TempData["ErrorMessage"] as string;
 }
 
+@if (!string.IsNullOrEmpty(successMessage))
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> @successMessage
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> @errorMessage
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+<!-- ==================== 页面标题 ==================== -->
 <div class="card shadow-sm mb-4">
     <div class="card-body">
-        <h2><i class="bi bi-gear"></i> Prompt 设置</h2>
-        <p class="text-muted mb-0">
-            直接编辑 Prompt 模板，保存后对全项目生效。清空内容后保存则恢复使用系统默认模板。
-        </p>
+        <h2 class="mb-1"><i class="bi bi-gear"></i> 项目设置</h2>
+        <p class="text-muted mb-0">在此管理项目的名称、模型、分块参数与提示词模板。所有变更仅对当前项目生效。</p>
     </div>
 </div>
 
-@* ==================== Prompt 编辑区 ==================== *@
-<div class="card shadow-sm">
-    <div class="card-header">
-        <h5 class="mb-0"><i class="bi bi-pencil-square"></i> 模板编辑</h5>
-    </div>
-    <div class="card-body">
-        <form asp-action="UpdatePrompt" asp-route-id="@Model.Project.Id" method="post">
-            @Html.AntiForgeryToken()
+<!-- ==================== 4 Tab 导航 ==================== -->
+<ul class="nav nav-tabs settings-tabs mb-4">
+    <li class="nav-item">
+        <a class="nav-link @(activeTab == "basic" ? "active" : "")"
+           href="?tab=basic"><i class="bi bi-info-circle"></i> 基本信息</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link @(activeTab == "model" ? "active" : "")"
+           href="?tab=model"><i class="bi bi-cpu"></i> 模型配置</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link @(activeTab == "task" ? "active" : "")"
+           href="?tab=task"><i class="bi bi-sliders"></i> 任务配置</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link @(activeTab == "prompt" ? "active" : "")"
+           href="?tab=prompt"><i class="bi bi-chat-quote"></i> 提示词配置</a>
+    </li>
+</ul>
 
-            <div class="mb-4">
-                <label for="questionPrompt" class="form-label fw-bold">
-                    <i class="bi bi-question-circle"></i> 问题生成 Prompt
-                </label>
-                <textarea id="questionPrompt" name="questionPrompt" class="form-control custom-prompt-textarea" rows="14"
-                          placeholder="# Role: 文本问题生成专家 …">@Model.EffectiveQuestionPrompt</textarea>
-                <div class="d-flex justify-content-between align-items-center mt-2">
-                    <div class="form-text mb-0">
-                        <i class="bi bi-info-circle"></i>
-                        可使用 <code>{qaType}</code> 和 <code>{count}</code> 作为运行时占位符。
-                    </div>
-                    <button type="button" class="btn btn-sm btn-outline-secondary reset-prompt-btn"
-                            data-target="questionPrompt">
-                        <i class="bi bi-arrow-counterclockwise"></i> 恢复默认
-                    </button>
+<!-- ==================== Tab: 基本信息 ==================== -->
+@if (activeTab == "basic")
+{
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-info-circle"></i> 基本信息</h5>
+        </div>
+        <div class="card-body">
+            <form asp-action="UpdateBasic" asp-route-id="@Model.Project.Id" method="post">
+                @Html.AntiForgeryToken()
+
+                <div class="mb-3">
+                    <label for="name" class="form-label fw-bold">
+                        <i class="bi bi-folder"></i> 项目名称 <span class="text-danger">*</span>
+                    </label>
+                    <input id="name" name="name" type="text" class="form-control" maxlength="200"
+                           value="@Model.Project.Name" required />
+                    <div class="form-text">最多 200 个字符，创建后仍可修改。</div>
                 </div>
-            </div>
 
-            <div class="mb-4">
-                <label for="answerPrompt" class="form-label fw-bold">
-                    <i class="bi bi-chat-square-text"></i> 答案生成 Prompt
-                </label>
-                <textarea id="answerPrompt" name="answerPrompt" class="form-control custom-prompt-textarea" rows="14"
-                          placeholder="# Role: 微调数据集生成专家 …">@Model.EffectiveAnswerPrompt</textarea>
-                <div class="d-flex justify-content-between align-items-center mt-2">
-                    <div class="form-text mb-0">
-                        <i class="bi bi-info-circle"></i>
-                        用于指导 LLM 根据 instruction 和文档段落生成对应的 output。
-                    </div>
-                    <button type="button" class="btn btn-sm btn-outline-secondary reset-prompt-btn"
-                            data-target="answerPrompt">
-                        <i class="bi bi-arrow-counterclockwise"></i> 恢复默认
-                    </button>
+                <div class="mb-3">
+                    <label for="description" class="form-label fw-bold">
+                        <i class="bi bi-text-paragraph"></i> 项目描述
+                    </label>
+                    <textarea id="description" name="description" class="form-control" rows="3" maxlength="1000"
+                              placeholder="简要描述项目的用途、目标数据特征等">@Model.Project.Description</textarea>
+                    <div class="form-text">最多 1000 个字符，可选填。</div>
                 </div>
-            </div>
 
-            <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-check-lg"></i> 保存设置
-                </button>
-                <a asp-action="Detail" asp-route-id="@Model.Project.Id" class="btn btn-secondary">
-                    <i class="bi bi-arrow-left"></i> 返回
-                </a>
-            </div>
-        </form>
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> 保存基本信息
+                    </button>
+                    <a asp-action="Detail" asp-route-id="@Model.Project.Id" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> 返回项目
+                    </a>
+                </div>
+            </form>
+        </div>
     </div>
-</div>
+}
+<!-- ==================== Tab: 模型配置 ==================== -->
+else if (activeTab == "model")
+{
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-cpu"></i> 模型配置</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">
+                选择该项目使用的 LLM 模型配置。修改后，生成问答对时会使用新模型。
+            </p>
+
+            @if (!Model.LLMConfigs.Any())
+            {
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    暂无可用模型配置，请先在顶部导航「模型配置」中创建。
+                </div>
+            }
+            else
+            {
+                <form asp-action="UpdateLLMConfigTab" asp-route-id="@Model.Project.Id" method="post">
+                    @Html.AntiForgeryToken()
+
+                    <div class="mb-3">
+                        <label for="llmConfigId" class="form-label fw-bold">
+                            <i class="bi bi-cpu"></i> 当前模型
+                        </label>
+                        <select id="llmConfigId" name="llmConfigId" class="form-select" required>
+                            <option value="">-- 请选择模型 --</option>
+                            @foreach (var cfg in Model.LLMConfigs)
+                            {
+                                var selected = cfg.Id == Model.Project.LLMConfigId;
+                                <option value="@cfg.Id" selected="@(selected ? "selected" : null)">
+                                    @cfg.ModelName (@cfg.Provider) — @cfg.ModelLabel
+                                </option>
+                            }
+                        </select>
+                        @if (Model.CurrentLLMConfig != null && Model.CurrentLLMConfig.IsDeleted)
+                        {
+                            <div class="text-danger mt-2">
+                                <i class="bi bi-exclamation-triangle"></i> 模型已失效，请重新选择
+                            </div>
+                        }
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg"></i> 保存模型
+                        </button>
+                        <a asp-action="Detail" asp-route-id="@Model.Project.Id" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> 返回项目
+                        </a>
+                    </div>
+                </form>
+            }
+        </div>
+    </div>
+}
+<!-- ==================== Tab: 任务配置 ==================== -->
+else if (activeTab == "task")
+{
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-sliders"></i> 任务配置</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">
+                调整文档分块参数与问答生成策略。修改后对该项目后续解析与生成生效。
+            </p>
+
+            <form asp-action="UpdateTaskConfig" asp-route-id="@Model.Project.Id" method="post" id="taskConfigForm">
+                @Html.AntiForgeryToken()
+
+                <div class="mb-4">
+                    <label for="chunkMinLength" class="form-label fw-bold">
+                        最小段落长度 <span class="badge bg-primary ms-2" id="chunkMinLengthBadge">@Model.Project.ChunkMinLength</span>
+                    </label>
+                    <input type="range" class="form-range task-config-slider" id="chunkMinLength" name="chunkMinLength"
+                           min="100" max="5000" step="100" value="@Model.Project.ChunkMinLength"
+                           data-target="chunkMinLengthBadge" />
+                    <div class="d-flex justify-content-between form-text">
+                        <span>100</span>
+                        <span>5000</span>
+                    </div>
+                    <div class="form-text">按段落分段时，累计段落达到该值后才允许切分。</div>
+                </div>
+
+                <div class="mb-4">
+                    <label for="chunkMaxLength" class="form-label fw-bold">
+                        最大段落长度 <span class="badge bg-primary ms-2" id="chunkMaxLengthBadge">@Model.Project.ChunkMaxLength</span>
+                    </label>
+                    <input type="range" class="form-range task-config-slider" id="chunkMaxLength" name="chunkMaxLength"
+                           min="1000" max="8000" step="100" value="@Model.Project.ChunkMaxLength"
+                           data-target="chunkMaxLengthBadge" />
+                    <div class="d-flex justify-content-between form-text">
+                        <span>1000</span>
+                        <span>8000</span>
+                    </div>
+                    <div class="form-text">按段落分段时，累计段落达到该值时强制切分；按固定长度分段时，作为每段字符数。</div>
+                </div>
+
+                <div class="mb-4">
+                    <label for="charsPerQuestion" class="form-label fw-bold">
+                        字符/问题比 <span class="badge bg-primary ms-2" id="charsPerQuestionBadge">@Model.Project.CharsPerQuestion</span>
+                    </label>
+                    <input type="range" class="form-range task-config-slider" id="charsPerQuestion" name="charsPerQuestion"
+                           min="100" max="500" step="10" value="@Model.Project.CharsPerQuestion"
+                           data-target="charsPerQuestionBadge" />
+                    <div class="d-flex justify-content-between form-text">
+                        <span>100（更密集）</span>
+                        <span>500（更稀疏）</span>
+                    </div>
+                    <div class="form-text">每多少个字符生成一个问题。值越小生成的问题越多。</div>
+                </div>
+
+                <div class="mb-4">
+                    <label for="questionMarkRemovalRate" class="form-label fw-bold">
+                        问号去除率 <span class="badge bg-primary ms-2" id="questionMarkRemovalRateBadge">@Model.Project.QuestionMarkRemovalRate%</span>
+                    </label>
+                    <input type="range" class="form-range task-config-slider" id="questionMarkRemovalRate" name="questionMarkRemovalRate"
+                           min="0" max="100" step="5" value="@Model.Project.QuestionMarkRemovalRate"
+                           data-target="questionMarkRemovalRateBadge" data-suffix="%" />
+                    <div class="d-flex justify-content-between form-text">
+                        <span>0%（不去除）</span>
+                        <span>100%（全部去除）</span>
+                    </div>
+                    <div class="form-text">去除问题末尾问号的比例。</div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> 保存任务配置
+                    </button>
+                    <a asp-action="Detail" asp-route-id="@Model.Project.Id" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> 返回项目
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+}
+<!-- ==================== Tab: 提示词配置 ==================== -->
+else if (activeTab == "prompt")
+{
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-pencil-square"></i> 提示词配置</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">
+                直接编辑 Prompt 模板，保存后对全项目生效。清空内容后保存则恢复使用系统默认模板。
+            </p>
+
+            <form asp-action="UpdatePrompt" asp-route-id="@Model.Project.Id" method="post">
+                @Html.AntiForgeryToken()
+
+                <div class="mb-4">
+                    <label for="questionPrompt" class="form-label fw-bold">
+                        <i class="bi bi-question-circle"></i> 问题生成 Prompt
+                    </label>
+                    <textarea id="questionPrompt" name="questionPrompt" class="form-control custom-prompt-textarea" rows="14"
+                              placeholder="# Role: 文本问题生成专家 …">@Model.EffectiveQuestionPrompt</textarea>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <div class="form-text mb-0">
+                            <i class="bi bi-info-circle"></i>
+                            可使用 <code>{qaType}</code> 和 <code>{count}</code> 作为运行时占位符。
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary reset-prompt-btn"
+                                data-target="questionPrompt">
+                            <i class="bi bi-arrow-counterclockwise"></i> 恢复默认
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label for="answerPrompt" class="form-label fw-bold">
+                        <i class="bi bi-chat-square-text"></i> 答案生成 Prompt
+                    </label>
+                    <textarea id="answerPrompt" name="answerPrompt" class="form-control custom-prompt-textarea" rows="14"
+                              placeholder="# Role: 微调数据集生成专家 …">@Model.EffectiveAnswerPrompt</textarea>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <div class="form-text mb-0">
+                            <i class="bi bi-info-circle"></i>
+                            用于指导 LLM 根据 instruction 和文档段落生成对应的 output。
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary reset-prompt-btn"
+                                data-target="answerPrompt">
+                            <i class="bi bi-arrow-counterclockwise"></i> 恢复默认
+                        </button>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> 保存提示词
+                    </button>
+                    <a asp-action="Detail" asp-route-id="@Model.Project.Id" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> 返回项目
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+}
 
 @section Scripts {
 <script>
-// 默认模板数据
+// ==================== Slider 实时显示 ====================
+document.querySelectorAll('.task-config-slider').forEach(function(slider) {
+    slider.addEventListener('input', function() {
+        var badgeId = this.dataset.target;
+        var badge = document.getElementById(badgeId);
+        if (badge) {
+            var suffix = this.dataset.suffix || '';
+            badge.textContent = this.value + suffix;
+        }
+    });
+});
+
+// ==================== 提示词恢复默认 ====================
 const defaultPrompts = {
     questionPrompt: @Html.Raw(JsonSerializer.Serialize(Model.DefaultQuestionPrompt)),
     answerPrompt: @Html.Raw(JsonSerializer.Serialize(Model.DefaultAnswerPrompt))

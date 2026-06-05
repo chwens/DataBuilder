@@ -39,7 +39,7 @@
                     <select name="strategy" id="strategy" class="form-select">
                         <option value="Heading">按标题分段（推荐用于 Markdown）</option>
                         <option value="Paragraph">按段落分段</option>
-                        <option value="FixedLength">固定长度分段（每段 2000 字）</option>
+                        <option value="FixedLength">固定长度分段（每段 @ViewData["ChunkMaxLength"] 字）</option>
                     </select>
                     <div class="form-text">
                         分段策略决定文档如何被拆分为可供 LLM 处理的片段。

@@ -23,6 +23,8 @@ public class ExportController : Controller
     // GET /Export/Download/{projectId}
     public async Task<IActionResult> Download(int projectId, string? qaIds = null)
     {
+        ViewData["ProjectId"] = projectId; // Phase 2C: 让 _Layout 渲染项目内 4 Tab 容器
+
         var project = await _db.Projects.FindAsync(projectId);
         if (project == null)
             return NotFound();

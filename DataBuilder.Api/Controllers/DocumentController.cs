@@ -23,6 +23,8 @@ public class DocumentController : Controller
     // GET: /Document/Upload/{projectId}
     public async Task<IActionResult> Upload(int projectId)
     {
+        ViewData["ProjectId"] = projectId; // Phase 2C: 让 _Layout 渲染项目内 4 Tab 容器
+
         var project = await _db.Projects.FindAsync(projectId);
         if (project == null)
         {
@@ -34,6 +36,9 @@ public class DocumentController : Controller
             ProjectId = projectId,
             ProjectName = project.Name
         };
+
+        // Phase 5: 让"固定长度分段"描述动态显示项目配置的最大分段长度
+        ViewData["ChunkMaxLength"] = project.ChunkMaxLength;
 
         return View(vm);
     }
@@ -98,7 +103,7 @@ public class DocumentController : Controller
     // POST: /Document/Parse/{id}
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Parse(int id, string strategy = "Heading", int chunkSize = 2000)
+    public async Task<IActionResult> Parse(int id, string strategy = "Heading", int? chunkSize = null)
     {
         var doc = await _db.Documents.FindAsync(id);
         if (doc == null)
@@ -106,12 +111,22 @@ public class DocumentController : Controller
             return NotFound();
         }
 
+        // Phase 3D: 从所属 Project 读取分块参数（前端未传时回退到项目配置）
+        var project = await _db.Projects.FindAsync(doc.ProjectId);
+        if (project == null)
+        {
+            return NotFound();
+        }
+
+        var effectiveChunkSize = chunkSize ?? project.ChunkMaxLength;
+        var effectiveChunkMinLength = project.ChunkMinLength;
+
         doc.Status = DocumentStatus.Parsing;
         await _db.SaveChangesAsync();
 
         try
         {
-            var chunks = _parser.Parse(doc.FileName, doc.Content, strategy, chunkSize);
+            var chunks = _parser.Parse(doc.FileName, doc.Content, strategy, effectiveChunkSize, effectiveChunkMinLength);
 
             foreach (var chunk in chunks)
             {
@@ -122,7 +137,8 @@ public class DocumentController : Controller
             doc.Status = DocumentStatus.Parsed;
             await _db.SaveChangesAsync();
 
-            _logger.LogInformation("文档解析完成: Id={DocumentId}, 分段数={Count}", id, chunks.Count);
+            _logger.LogInformation("文档解析完成: Id={DocumentId}, 策略={Strategy}, chunkSize={ChunkSize}, chunkMinLength={ChunkMinLength}, 分段数={Count}",
+                id, strategy, effectiveChunkSize, effectiveChunkMinLength, chunks.Count);
 
             TempData["SuccessMessage"] = $"文档解析完成，共生成 {chunks.Count} 个分段。";
         }
@@ -151,10 +167,15 @@ public class DocumentController : Controller
             return NotFound();
         }
 
+        ViewData["ProjectId"] = doc.ProjectId; // Phase 2C: 让 _Layout 渲染项目内 4 Tab 容器
+
+        var project = await _db.Projects.FindAsync(doc.ProjectId);
+
         var vm = new DocumentChunksViewModel
         {
             Document = doc,
-            Chunks = doc.Chunks.OrderBy(c => c.Sequence).ToList()
+            Chunks = doc.Chunks.OrderBy(c => c.Sequence).ToList(),
+            ProjectChunkMaxLength = project?.ChunkMaxLength ?? 4000
         };
 
         if (TempData["ParseStrategy"] is string strategy)
@@ -223,12 +244,15 @@ public class DocumentController : Controller
     /// </summary>
     private async Task<IActionResult> RebuildUploadView(int projectId)
     {
+        ViewData["ProjectId"] = projectId; // Phase 2C: 让 _Layout 渲染项目内 4 Tab 容器
         var project = await _db.Projects.FindAsync(projectId);
         var vm = new DocumentUploadViewModel
         {
             ProjectId = projectId,
             ProjectName = project?.Name ?? string.Empty
         };
+        // Phase 5: 与 Upload GET 保持一致，让"固定长度分段"描述动态显示
+        ViewData["ChunkMaxLength"] = project?.ChunkMaxLength ?? 2000;
         return View("Upload", vm);
     }
 }

@@ -2,6 +2,7 @@
 @{
     ViewData["Title"] = $"分段结果 - {Model.Document.FileName}";
     var parseStrategy = ViewData["ParseStrategy"] as string ?? "Heading";
+    var projectChunkSize = Model.ProjectChunkMaxLength;
 }
 
 <div class="container">
@@ -59,10 +60,10 @@
                         <select name="strategy" id="strategy" class="form-select">
                             <option value="Heading" selected="@(parseStrategy == "Heading")">按标题分段</option>
                             <option value="Paragraph" selected="@(parseStrategy == "Paragraph")">按段落分段</option>
-                            <option value="FixedLength" selected="@(parseStrategy == "FixedLength")">固定长度分段（2000字）</option>
+                            <option value="FixedLength" selected="@(parseStrategy == "FixedLength")">固定长度分段（@projectChunkSize 字）</option>
                         </select>
                     </div>
-                    <input type="hidden" name="chunkSize" value="2000" />
+                    <input type="hidden" name="chunkSize" value="@projectChunkSize" />
                     <button type="submit" class="btn btn-success btn-lg">
                         开始解析
                     </button>
@@ -136,7 +137,7 @@
             </a>
             <form asp-action="Parse" asp-route-id="@Model.Document.Id" method="post" class="d-inline">
                 <input type="hidden" name="strategy" value="@parseStrategy" />
-                <input type="hidden" name="chunkSize" value="2000" />
+                <input type="hidden" name="chunkSize" value="@projectChunkSize" />
                 <button type="submit" class="btn btn-outline-primary">
                     重新解析
                 </button>

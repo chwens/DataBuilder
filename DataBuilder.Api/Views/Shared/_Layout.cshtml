@@ -1,4 +1,64 @@
 @inject Microsoft.Extensions.Options.IOptions<DataBuilder.Api.Models.SiteOptions> SiteConfig
+@{
+    var hasProjectId = ViewData["ProjectId"] != null;
+    var projectIdValue = ViewData["ProjectId"];
+}
+
+@functions {
+    /// <summary>
+    /// 判断指定 Tab 是否应在当前页面激活。
+    /// </summary>
+    /// <param name="tabKey">
+    /// Tab 标识，可选值：
+    ///   "data-source" — 数据源 Tab（对应 Project/Detail 页面）
+    ///   "questions"   — 问题 Tab（对应 QA/ProjectQuestions 页面）
+    ///   "qa-pairs"    — 数据集 Tab（对应 QA/ProjectQAPairs 页面）
+    ///   "settings"    — 项目设置下拉项（对应 Project/Settings 页面，仅用于「更多」下拉高亮）
+    /// </param>
+    /// <returns>激活返回 true，否则 false</returns>
+    bool IsTabActive(string tabKey)
+    {
+        // 方案 C 混合实现：RouteData 为主，ViewData["ActiveTab"] 作为显式 override。
+        // 当 Controller 需要强制激活某 Tab（例如重定向后激活不同 Tab）时，
+        // 在 Action 里写 ViewData["ActiveTab"] = "xxx" 即可绕过 RouteData 判断。
+
+        // 1. 显式 override 优先
+        var explicitTab = ViewData["ActiveTab"] as string;
+        if (!string.IsNullOrEmpty(explicitTab))
+        {
+            return string.Equals(explicitTab, tabKey, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // 2. 默认：基于 RouteData 推断
+        var controller = ViewContext.RouteData.Values["controller"] as string;
+        var action = ViewContext.RouteData.Values["action"] as string;
+
+        // 映射约定（用户确认）：
+        //   document 级 QA 预览 → 数据源
+        //   编辑问题 → 问题；编辑答案 → 数据集
+        //   分段/上传 → 数据源；导出 → 数据集
+        return (tabKey ?? string.Empty).ToLowerInvariant() switch
+        {
+            "data-source" =>
+                (controller == "Project" && action == "Detail") ||
+                (controller == "Document" && (action == "Upload" || action == "Chunks" || action == "Parse")) ||
+                (controller == "QA" && action == "Preview"),
+
+            "questions" =>
+                controller == "QA" && (action == "ProjectQuestions" || action == "EditQuestion"),
+
+            "qa-pairs" =>
+                (controller == "QA" && (action == "ProjectQAPairs" || action == "EditAnswer")) ||
+                (controller == "Export" && action == "Download"),
+
+            "settings" =>
+                controller == "Project" && action == "Settings",
+
+            _ => false,
+        };
+    }
+}
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -15,16 +75,73 @@
     <nav class="navbar navbar-dark top-navbar fixed-top">
         <div class="container-fluid d-flex align-items-center">
             <a class="navbar-brand" asp-controller="Home" asp-action="Index">
-                <span class="brand-icon">D</span> DataBuilder
+                <span class="brand-icon"></span>
+                <span class="brand-text">@SiteConfig.Value.AppName</span>
             </a>
-            <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "LLMConfig" ? "active" : "")"
-               asp-controller="LLMConfig" asp-action="Index">
-                <i class="bi bi-cpu"></i> 模型配置
-            </a>
+            <div class="navbar-actions ms-auto">
+                <a class="nav-link @(ViewContext.RouteData.Values["Controller"]?.ToString() == "LLMConfig" ? "active" : "")"
+                   asp-controller="LLMConfig" asp-action="Index">
+                    <i class="bi bi-cpu"></i> 模型配置
+                </a>
+            </div>
         </div>
     </nav>
 
-    <div class="main-content">
+    @if (hasProjectId)
+    {
+        <div class="project-tabs">
+            <div class="container-fluid">
+                <ul class="nav project-tabs-nav">
+                    <li class="nav-item">
+                        <a class="nav-link @(IsTabActive("data-source") ? "active" : "")"
+                           asp-controller="Project" asp-action="Detail" asp-route-id="@projectIdValue">
+                            <i class="bi bi-database"></i> 数据源
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link @(IsTabActive("questions") ? "active" : "")"
+                           asp-controller="QA" asp-action="ProjectQuestions" asp-route-projectId="@projectIdValue">
+                            <i class="bi bi-question-circle"></i> 问题
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link @(IsTabActive("qa-pairs") ? "active" : "")"
+                           asp-controller="QA" asp-action="ProjectQAPairs" asp-route-projectId="@projectIdValue">
+                            <i class="bi bi-collection"></i> 数据集
+                        </a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-three-dots"></i> 更多
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <a class="dropdown-item @(IsTabActive("settings") ? "active" : "")"
+                                   asp-controller="Project" asp-action="Settings" asp-route-id="@projectIdValue">
+                                    <i class="bi bi-gear"></i> 项目设置
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <form method="post"
+                                      asp-controller="Project"
+                                      asp-action="Delete"
+                                      asp-route-id="@projectIdValue"
+                                      onsubmit="return confirm('确定删除此项目及其所有文档？');">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="dropdown-item text-danger">
+                                        <i class="bi bi-trash"></i> 删除项目
+                                    </button>
+                                </form>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    }
+
+    <div class="main-content @(hasProjectId ? "has-tabs" : "")">
         <main>
             @RenderBody()
         </main>
