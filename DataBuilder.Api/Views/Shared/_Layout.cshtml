@@ -163,6 +163,8 @@
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     @* HTMX 2.0 — 方案 B 核心：Settings 4 Tab 无刷新切换（~14KB gzip，CDN 引入） *@
     <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.3/dist/htmx.min.js" crossorigin="anonymous"></script>
+    @* ECharts 5.5.1 — 项目统计图渲染（任务 #22） *@
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js" crossorigin="anonymous"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>

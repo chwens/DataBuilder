@@ -35,8 +35,26 @@ else
 builder.Services.AddScoped<IDocumentParser, DocumentParser>();
 builder.Services.AddScoped<IAlpacaExporter, AlpacaExporter>();
 
-// LLM Service — 不再依赖注入 HttpClient，改为由 LLMConfig 驱动每次创建
+// 注册命名 HttpClient — 供 LLMService 通过 IHttpClientFactory 获取
+// 使用默认的 HttpMessageHandler 生命周期（2 分钟），避免每次 new HttpClient 带来的 DNS 重新解析和端口 TIME_WAIT 累积
+builder.Services.AddHttpClient("LLM", client =>
+{
+    // 与原 LLMService 中 HttpClient.Timeout = 120s 保持一致
+    client.Timeout = TimeSpan.FromSeconds(120);
+});
+
+// LLM Service — 通过 IHttpClientFactory 获取命名 HttpClient
 builder.Services.AddScoped<ILLMService, LLMService>();
+
+// 主题打标服务（LLM 两轮打标）— Scoped，内部按 ScopeFactory 自行创建 DbContext
+builder.Services.AddScoped<ITopicTaggerService, TopicTaggerService>();
+
+// 主题打标后台队列（BackgroundService + Channel）— Singleton，DI 自动管理生命周期
+builder.Services.AddSingleton<ITopicTaggingQueue, TopicTaggingQueue>();
+builder.Services.AddHostedService<TopicTaggingQueue>();
+
+// 启动期一次性重建 5 个 QA 统计 SP（保证 5 SP 一致性，替代 migration 中的非事务 DROP+CREATE）
+builder.Services.AddHostedService<SpConsistencyService>();
 
 builder.Services.Configure<SiteOptions>(builder.Configuration.GetSection("Site"));
 

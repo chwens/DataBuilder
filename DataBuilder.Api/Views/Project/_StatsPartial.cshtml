@@ -1,0 +1,72 @@
+@model int
+@{
+    // 5 张图：3+2 响应式网格。包在 Bootstrap Collapse 容器中，默认折叠，
+    // 由父页面的「查看数据统计」按钮 (data-bs-target="#stats-panel-@projectId") 触发。
+    // 折叠状态下 ECharts 容器 display:none，project-stats.js 会在 show 事件触发时再 init+resize。
+    var projectId = Model;
+}
+
+<div id="stats-panel-@projectId" data-project-id="@projectId" class="collapse row g-3 mb-3">
+    <!-- 图1: 类型分布（饼图） -->
+    <div class="col-12 col-md-6 col-xl-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-pie-chart"></i> 类型分布</span>
+                <button class="btn btn-sm btn-outline-secondary d-none" id="filter-clear" type="button">
+                    <i class="bi bi-x-circle"></i> 清除筛选
+                </button>
+            </div>
+            <div class="card-body p-2">
+                <div id="chart-qa-type" style="width:100%;height:320px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 图2: 质量分（柱图） -->
+    <div class="col-12 col-md-6 col-xl-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-bar-chart"></i> 质量分分布</span>
+            </div>
+            <div class="card-body p-2">
+                <div id="chart-quality" style="width:100%;height:320px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 图3: 主题（横柱图 + 联动源） -->
+    <div class="col-12 col-md-6 col-xl-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-tags"></i> 主题 Top 15</span>
+            </div>
+            <div class="card-body p-2">
+                <div id="chart-topic" style="width:100%;height:320px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 图4: 文档 Top 10（横柱图） -->
+    <div class="col-12 col-md-6 col-xl-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-file-earmark-bar-graph"></i> 文档 Top 10</span>
+            </div>
+            <div class="card-body p-2">
+                <div id="chart-doc-top" style="width:100%;height:320px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 图5: 已答/未答（饼图） -->
+    <div class="col-12 col-md-6 col-xl-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-check2-circle"></i> 回答状态</span>
+            </div>
+            <div class="card-body p-2">
+                <div id="chart-answer" style="width:100%;height:320px;"></div>
+            </div>
+        </div>
+    </div>
+</div>

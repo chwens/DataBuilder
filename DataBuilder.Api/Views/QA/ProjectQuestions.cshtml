@@ -43,10 +43,20 @@
                     {
                         <span class="chip chip-green ms-1">@Model.AnsweredCount 条已生成答案</span>
                     }
+                    @* 5 张统计图折叠按钮（Bootstrap Collapse） *@
+                    <button class="btn btn-l2 ms-2" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#stats-panel-@projectId"
+                            aria-expanded="false" aria-controls="stats-panel-@projectId">
+                        <i class="bi bi-bar-chart-line"></i> 查看数据统计
+                        <i class="bi bi-chevron-down ms-1 toggle-icon"></i>
+                    </button>
                 </div>
             </div>
         </div>
     </div>
+
+    @* 5 张统计图（默认折叠，点击上方按钮展开；图表 ID 用 stats-panel-{projectId} 防止冲突） *@
+    @await Html.PartialAsync("/Views/Project/_StatsPartial.cshtml", projectId)
 
     @* 类型筛选栏（sticky 操作栏 · 视觉铁律 #10） *@
     <div class="toolbar-sticky">
@@ -134,3 +144,7 @@
         }
     }
 </div>
+
+@section Scripts {
+<script src="~/js/stats/project-stats.js" asp-append-version="true"></script>
+}

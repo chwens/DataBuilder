@@ -1,6 +1,7 @@
 using DataBuilder.Core;
 using DataBuilder.Core.Entities;
 using DataBuilder.Core.Interfaces;
+using DataBuilder.Core.Services;
 using DataBuilder.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -11,12 +12,18 @@ public class QAController : Controller
 {
     private readonly AppDbContext _db;
     private readonly ILLMService _llm;
+    private readonly ITopicTaggingQueue _topicTaggingQueue;
     private readonly ILogger<QAController> _logger;
 
-    public QAController(AppDbContext db, ILLMService llm, ILogger<QAController> logger)
+    public QAController(
+        AppDbContext db,
+        ILLMService llm,
+        ITopicTaggingQueue topicTaggingQueue,
+        ILogger<QAController> logger)
     {
         _db = db;
         _llm = llm;
+        _topicTaggingQueue = topicTaggingQueue;
         _logger = logger;
     }
 
@@ -243,6 +250,17 @@ public class QAController : Controller
             {
                 await transaction.RollbackAsync();
                 throw;
+            }
+
+            // Task #20 + 优化: 主题打标改为后台异步任务
+            // 两轮 LLM（自由打标 + 聚类归一化）由 TopicTaggingQueue BackgroundService 在后台执行，
+            // 这里只入队、瞬时返回，不再阻塞 HTTP 请求。
+            // CR-15: 改用 EnqueueAsync，channel 满时异步等待（不再静默丢失 documentId）。
+            var enqueued = await _topicTaggingQueue.EnqueueAsync(documentId);
+            if (!enqueued)
+            {
+                // 队列已关闭 / 被取消 — 告知用户重新触发
+                TempData["ErrorMessage"] = "打标队列已满，请稍后重试";
             }
 
             _logger.LogInformation("问题生成完成: DocumentId={DocumentId}, 类型={QaType}, 数量={Count}", documentId, qaType, newQaPairs.Count);

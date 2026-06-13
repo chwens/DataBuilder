@@ -42,6 +42,18 @@ public class QAPair
     /// </summary>
     public bool Answered { get; set; } = false;
 
+    /// <summary>
+    /// 第一轮 LLM 自由打标的原始标签（多个标签以逗号分隔）
+    /// </summary>
+    [MaxLength(500)]
+    public string? TopicRaw { get; set; }
+
+    /// <summary>
+    /// 第二轮 LLM 聚类归一化后的主主题
+    /// </summary>
+    [MaxLength(100)]
+    public string? Topic { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     [ForeignKey(nameof(ChunkId))]

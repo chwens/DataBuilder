@@ -1,3 +1,4 @@
+using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -13,20 +14,74 @@ public class LLMService : ILLMService
 {
     private readonly IEncryptionService _encryption;
     private readonly ILogger<LLMService> _logger;
+    private readonly IHttpClientFactory _httpClientFactory;
 
-    private static readonly Regex JsonArrayRegex = new(
-        @"\[[\s\S]*?\]", RegexOptions.Multiline | RegexOptions.Compiled);
+    private const string HttpClientName = "LLM";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
     };
 
-    public LLMService(IEncryptionService encryption, ILogger<LLMService> logger)
+    // ==================== LLMConfig 维度缓存（线程安全）====================
+    // Bug #2 修复：原实现每次调用都重设 client.BaseAddress / Authorization，
+    // 共享 handler 池下并发 Project A/B 用不同 ApiUrl/ApiKey 时互相覆盖，
+    // 未发出的请求 BaseAddress/Authorization 错乱（race condition）。
+    //
+    // 新方案：缓存 LLMConfig.Id -> 规范化 ApiUrl 与解密后 ApiKey，
+    // 调用时用绝对 URI + request.Headers.Authorization，
+    // 不再修改 IHttpClientFactory 返回的 HttpClient 共享状态。
+    private readonly Dictionary<int, string> _baseAddressCache = new();
+    private readonly Dictionary<int, string> _apiKeyCache = new();
+    private readonly object _cacheLock = new();
+
+    public LLMService(
+        IEncryptionService encryption,
+        IHttpClientFactory httpClientFactory,
+        ILogger<LLMService> logger)
     {
         _encryption = encryption;
+        _httpClientFactory = httpClientFactory;
         _logger = logger;
-        _logger.LogInformation("LLMService 初始化完成（仅支持 LLMConfig 配置调用）");
+        _logger.LogInformation("LLMService 初始化完成（IHttpClientFactory 注入，命名 client: {ClientName}）", HttpClientName);
+    }
+
+    /// <summary>
+    /// 线程安全地按 LLMConfig.Id 获取规范化后的 BaseAddress（结尾带 /）
+    /// </summary>
+    private string GetOrAddBaseAddress(LLMConfig config)
+    {
+        if (_baseAddressCache.TryGetValue(config.Id, out var cached))
+            return cached;
+
+        lock (_cacheLock)
+        {
+            if (_baseAddressCache.TryGetValue(config.Id, out cached))
+                return cached;
+
+            var normalized = config.ApiUrl.TrimEnd('/') + "/";
+            _baseAddressCache[config.Id] = normalized;
+            return normalized;
+        }
+    }
+
+    /// <summary>
+    /// 线程安全地按 LLMConfig.Id 获取解密后的 ApiKey（缓存避免每次解密开销）
+    /// </summary>
+    private string GetOrAddApiKey(LLMConfig config)
+    {
+        if (_apiKeyCache.TryGetValue(config.Id, out var cached))
+            return cached;
+
+        lock (_cacheLock)
+        {
+            if (_apiKeyCache.TryGetValue(config.Id, out cached))
+                return cached;
+
+            var decrypted = _encryption.Decrypt(config.ApiKeyEncrypted);
+            _apiKeyCache[config.Id] = decrypted;
+            return decrypted;
+        }
     }
 
     // ==================== 第一步：生成问题 ====================
@@ -69,24 +124,46 @@ public class LLMService : ILLMService
         return response.Trim();
     }
 
+    // ==================== 通用 Chat Completion（用于打标等辅助任务）====================
+
+    /// <summary>
+    /// 纯 Chat Completion 调用，直接透传 system/user 提示词。
+    /// 内部复用 CallLLMWithConfigAsync 的鉴权/重试/超时逻辑。
+    /// </summary>
+    public async Task<string> ChatAsync(
+        string systemPrompt, string userPrompt, LLMConfig config,
+        int maxTokens = 2048,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateConfig(config);
+        return await CallLLMWithConfigAsync(
+            config, systemPrompt, userPrompt, maxTokens, cancellationToken);
+    }
+
     // ==================== LLM 调用核心 ====================
 
     /// <summary>
-    /// 使用 LLMConfig 配置创建临时 HttpClient 调用 LLM
+    /// 使用 LLMConfig 配置调用 LLM
+    ///
+    /// Bug #2 修复要点：
+    /// 1. 不再修改 IHttpClientFactory 返回的 HttpClient.BaseAddress / DefaultRequestHeaders.Authorization，
+    ///    避免共享 handler 池下并发不同 LLMConfig 互相覆盖造成 race。
+    /// 2. BaseAddress / ApiKey 通过缓存（GetOrAddBaseAddress / GetOrAddApiKey）按 LLMConfig.Id 隔离，
+    ///    并对 LLMConfig.Id 加锁保证线程安全。
+    /// 3. 调用时构造绝对 URI，并把 Authorization 放在 HttpRequestMessage.Headers（per-request），
+    ///    完全不污染 HttpClient 共享状态。
     /// </summary>
     private async Task<string> CallLLMWithConfigAsync(
         LLMConfig config, string systemPrompt, string userPrompt,
         int maxTokens, CancellationToken cancellationToken = default)
     {
-        var apiKey = _encryption.Decrypt(config.ApiKeyEncrypted);
+        var baseAddress = GetOrAddBaseAddress(config);
+        var apiKey = GetOrAddApiKey(config);
 
-        using var client = new HttpClient();
-        client.BaseAddress = new Uri(config.ApiUrl.TrimEnd('/') + "/");
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", apiKey);
-        client.Timeout = TimeSpan.FromSeconds(120);
+        // 通过 IHttpClientFactory 获取命名 client，仅用于复用底层 HttpMessageHandler 池和超时设置
+        var client = _httpClientFactory.CreateClient(HttpClientName);
 
-        var request = new ChatCompletionRequest
+        var chatRequest = new ChatCompletionRequest
         {
             Model = config.ModelId,
             Messages = new List<ChatMessage>
@@ -99,16 +176,23 @@ public class LLMService : ILLMService
             TopP = config.TopP
         };
 
-        return await CallLLMWithClientAsync(client, config.ModelId, request, cancellationToken);
+        return await CallLLMWithClientAsync(
+            client, baseAddress, apiKey, config.ModelId, chatRequest, cancellationToken);
     }
 
     /// <summary>
     /// HTTP 请求 + 3 次重试 + 响应解析核心逻辑
+    ///
+    /// Bug #2 修复：使用绝对 URI + per-request Authorization 头，
+    /// 不修改传入的 HttpClient 共享状态，确保并发安全。
     /// </summary>
     private async Task<string> CallLLMWithClientAsync(
-        HttpClient client, string model, ChatCompletionRequest request,
+        HttpClient client, string baseAddress, string apiKey, string model,
+        ChatCompletionRequest request,
         CancellationToken cancellationToken)
     {
+        var endpoint = new Uri(baseAddress.TrimEnd('/') + "/chat/completions");
+
         for (int attempt = 0; attempt < 3; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -118,7 +202,15 @@ public class LLMService : ILLMService
                 var json = JsonSerializer.Serialize(request);
                 var httpContent = new StringContent(json, Encoding.UTF8, "application/json");
 
-                var response = await client.PostAsync("chat/completions", httpContent, cancellationToken);
+                // 每次请求都用新的 HttpRequestMessage，Authorization 放在 per-request header，
+                // 完全隔离不同 LLMConfig 的鉴权信息。
+                var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint)
+                {
+                    Content = httpContent
+                };
+                httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+                var response = await client.SendAsync(httpRequest, cancellationToken);
                 var body = await response.Content.ReadAsStringAsync(cancellationToken);
 
                 if (!response.IsSuccessStatusCode)
@@ -284,7 +376,7 @@ public class LLMService : ILLMService
     /// </summary>
     private static List<string> ParseQuestionList(string rawText)
     {
-        var jsonMatch = JsonArrayRegex.Match(rawText);
+        var jsonMatch = LlmJsonRegex.Array.Match(rawText);
         if (!jsonMatch.Success)
         {
             // 回退: 按行拆分

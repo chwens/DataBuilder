@@ -22,4 +22,17 @@ public interface ILLMService
     Task<string> GenerateAnswerAsync(string chunkText, string question, LLMConfig config,
         string? customPrompt = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 纯 Chat Completion 调用（无业务模板），用于统计/打标等辅助任务。
+    /// </summary>
+    /// <param name="systemPrompt">系统提示词</param>
+    /// <param name="userPrompt">用户提示词</param>
+    /// <param name="config">LLM 模型配置</param>
+    /// <param name="maxTokens">最大生成 token 数</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>LLM 返回的 content 字符串（原始，未做格式清洗）</returns>
+    Task<string> ChatAsync(string systemPrompt, string userPrompt, LLMConfig config,
+        int maxTokens = 2048,
+        CancellationToken cancellationToken = default);
 }

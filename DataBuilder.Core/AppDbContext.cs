@@ -53,5 +53,9 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<QAPair>()
             .HasIndex(q => q.ChunkId);
+
+        modelBuilder.Entity<QAPair>()
+            .HasIndex(q => q.Topic)
+            .HasDatabaseName("IX_QAPairs_Topic");
     }
 }
