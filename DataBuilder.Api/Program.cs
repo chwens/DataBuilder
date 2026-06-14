@@ -1,3 +1,5 @@
+using DataBuilder.Api.Filters;
+using DataBuilder.Api.Middlewares;
 using DataBuilder.Api.Models;
 using DataBuilder.Core;
 using DataBuilder.Core.Entities;
@@ -60,7 +62,11 @@ builder.Services.Configure<SiteOptions>(builder.Configuration.GetSection("Site")
 
 builder.Services.AddSingleton<IEncryptionService, EncryptionService>();
 
-builder.Services.AddControllersWithViews();
+// AOP 切片：全局 Action 过滤器，必须注册到 DI 才能被 AddService<T>() 解析
+builder.Services.AddScoped<AuditLogFilter>();
+
+builder.Services.AddControllersWithViews(options =>
+    options.Filters.AddService<AuditLogFilter>());
 
 var app = builder.Build();
 
@@ -104,6 +110,9 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
+
+// 自定义中间件：必须在 UseRouting 之前注册，才能在 endpoint 选择前记录起点
+app.UseMiddleware<RequestTimingMiddleware>();
 app.UseRouting();
 app.UseAuthorization();
 
