@@ -13,17 +13,26 @@ public class QAController : Controller
     private readonly AppDbContext _db;
     private readonly ILLMService _llm;
     private readonly ITopicTaggingQueue _topicTaggingQueue;
+    private readonly GenerationProgressTracker _progressTracker;
     private readonly ILogger<QAController> _logger;
+    private readonly ITopicTaggerService _topicTagger;
+
+    // 类级别重入锁：防止 RetagTopics 被重复点击触发多次聚类（浪费 LLM 调用）
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, byte> _retagLock = new();
 
     public QAController(
         AppDbContext db,
         ILLMService llm,
         ITopicTaggingQueue topicTaggingQueue,
+        GenerationProgressTracker progressTracker,
+        ITopicTaggerService topicTagger,
         ILogger<QAController> logger)
     {
         _db = db;
         _llm = llm;
         _topicTaggingQueue = topicTaggingQueue;
+        _progressTracker = progressTracker;
+        _topicTagger = topicTagger;
         _logger = logger;
     }
 
@@ -205,6 +214,9 @@ public class QAController : Controller
         var chunks = document.Chunks.OrderBy(c => c.Sequence).ToList();
         var customPrompt = document.Project?.QuestionPrompt;
 
+        // 初始化进度跟踪
+        _progressTracker.Start(documentId, chunks.Count, "生成问题");
+
         try
         {
             // CR-10: 在 LLM 调用之前设置 Generating 状态，防止用户重复点击
@@ -213,6 +225,7 @@ public class QAController : Controller
 
             // 先生成所有新问题（收集到内存），全部成功后再替换旧数据
             var newQaPairs = new List<QAPair>();
+            int chunkIndex = 0;
             foreach (var chunk in chunks)
             {
                 List<string> questions;
@@ -231,6 +244,9 @@ public class QAController : Controller
                         Answered = false
                     });
                 }
+
+                chunkIndex++;
+                _progressTracker.Update(documentId, chunkIndex);
             }
 
             // CR-7: 用事务包裹 QA 替换操作，保证数据一致性
@@ -263,12 +279,15 @@ public class QAController : Controller
                 TempData["ErrorMessage"] = "打标队列已满，请稍后重试";
             }
 
+            _progressTracker.Complete(documentId);
+
             _logger.LogInformation("问题生成完成: DocumentId={DocumentId}, 类型={QaType}, 数量={Count}", documentId, qaType, newQaPairs.Count);
 
             TempData["Message"] = $"已为 {chunks.Count} 个文本片段生成问题。";
         }
         catch (Exception ex)
         {
+            _progressTracker.Error(documentId, ex.Message);
             _logger.LogError(ex, "问题生成失败: DocumentId={DocumentId}", documentId);
             TempData["ErrorMessage"] = $"问题生成失败：{ex.Message}";
         }
@@ -318,29 +337,44 @@ public class QAController : Controller
 
         var customPrompt = document.Project?.AnswerPrompt;
 
+        // 初始化进度跟踪
+        _progressTracker.Start(documentId, qaPairs.Count, "生成答案");
+
         int completed = 0;
         try
         {
             foreach (var qa in qaPairs)
             {
-                string answer;
-                answer = await _llm.GenerateAnswerAsync(
+                var result = await _llm.GenerateAnswerAsync(
                     qa.Chunk!.TextContent,
                     qa.Instruction,
                     llmConfig,
                     customPrompt,
                     HttpContext.RequestAborted);
 
-                qa.Output = answer;
+                qa.Output = result.Answer;
                 qa.Answered = true;
+
+                // 同步提取 LLM 返回的主题标签（存为 TopicRaw，供后续聚类归一化）
+                if (!string.IsNullOrWhiteSpace(result.TopicRaw))
+                {
+                    qa.TopicRaw = result.TopicRaw.Length > 500 ? result.TopicRaw[..500] : result.TopicRaw;
+                }
 
                 // 每个问题完成后立即持久化，避免 LLM 调用失败时全部丢失
                 await _db.SaveChangesAsync();
                 completed++;
+                _progressTracker.Update(documentId, completed);
             }
 
             document.Status = DocumentStatus.Done;
             await _db.SaveChangesAsync();
+
+            // 触发 TopicTaggingQueue 做聚类归一化（TopicRaw → Topic）
+            // TopicTaggerService 第一轮会自动跳过已有 TopicRaw 的 QA，只聚类归一化
+            await _topicTaggingQueue.EnqueueAsync(documentId);
+
+            _progressTracker.Complete(documentId);
 
             _logger.LogInformation("答案生成完成: DocumentId={DocumentId}, 成功={Completed}/{Total}", documentId, completed, qaPairs.Count);
 
@@ -348,9 +382,67 @@ public class QAController : Controller
         }
         catch (Exception ex)
         {
+            _progressTracker.Error(documentId, ex.Message);
             _logger.LogError(ex, "答案生成中断: DocumentId={DocumentId}, 已完成={Completed}/{Total}", documentId, completed, qaPairs.Count);
 
             TempData["ErrorMessage"] = $"答案生成中断：已完成 {completed}/{qaPairs.Count}。错误：{ex.Message}";
+        }
+
+        return RedirectToAction(nameof(Preview), new { documentId });
+    }
+
+    // POST: /QA/RetagTopics
+    // 手动重新触发主题打标（聚类归一化 TopicRaw → Topic），用于补打存量 + 失败自救
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RetagTopics(int documentId)
+    {
+        var docInfo = await _db.Documents
+            .Where(d => d.Id == documentId)
+            .Select(d => new { d.Id, d.ProjectId, d.Project })
+            .FirstOrDefaultAsync();
+        if (docInfo == null) return NotFound();
+
+        // 重入锁：防止重复点击触发多次聚类（浪费 LLM 调用）
+        if (!_retagLock.TryAdd(documentId, 0))
+        {
+            TempData["ErrorMessage"] = "该文档正在重新打标，请稍后再试。";
+            return RedirectToAction(nameof(Preview), new { documentId });
+        }
+
+        var totalQa = await _db.QAPairs.CountAsync(q => q.Chunk != null && q.Chunk.DocumentId == documentId);
+        _progressTracker.Start(documentId, 1, "主题打标");
+
+        try
+        {
+            await _topicTagger.ClusterDocumentAsync(documentId);
+
+            // 事后计数兜底：覆盖 Service 内部所有静默 early-return（tagConfig==null / qaPairs==0 / withRawTags==0 均不抛异常）
+            var topicFilled = await _db.QAPairs
+                .AsNoTracking()
+                .CountAsync(q => q.Chunk != null && q.Chunk.DocumentId == documentId
+                              && !string.IsNullOrWhiteSpace(q.Topic));
+
+            if (topicFilled == 0)
+            {
+                _progressTracker.Error(documentId, "未生成任何主题，请检查 LLM 配置或网络后重试。");
+                TempData["ErrorMessage"] = "未生成任何主题。可能原因：LLM 配置失效、网络异常或返回格式无法解析。请检查模型配置后重试。";
+            }
+            else
+            {
+                _progressTracker.Complete(documentId);
+                TempData["Message"] = $"已为 {topicFilled} / {totalQa} 条问题重新聚类归一化主题（覆盖原值）。";
+            }
+        }
+        catch (Exception ex)
+        {
+            _progressTracker.Error(documentId, ex.Message);
+            _logger.LogError(ex, "重新打标失败: DocumentId={DocumentId}", documentId);
+            TempData["ErrorMessage"] = $"重新打标失败：{ex.Message}";
+        }
+        finally
+        {
+            _retagLock.TryRemove(documentId, out _);
         }
 
         return RedirectToAction(nameof(Preview), new { documentId });
@@ -435,6 +527,42 @@ public class QAController : Controller
 
         TempData["Message"] = "答案已更新。";
         return RedirectToAction(nameof(Preview), new { documentId = qaPair.Chunk!.DocumentId });
+    }
+
+    // GET /QA/GenerateProgress/{documentId}
+    /// <summary>
+    /// 返回指定文档的生成进度（JSON），供前端轮询。
+    /// 返回 isRunning=false 表示无正在进行的任务。
+    /// </summary>
+    [HttpGet]
+    public IActionResult GenerateProgress(int documentId)
+    {
+        var progress = _progressTracker.Get(documentId);
+        if (progress == null)
+            return Json(new { isRunning = false });
+
+        return Json(new
+        {
+            isRunning = progress.IsRunning,
+            isCompleted = progress.IsCompleted,
+            isError = progress.IsError,
+            errorMessage = progress.ErrorMessage,
+            current = progress.Current,
+            total = progress.Total,
+            percent = progress.Percent,
+            stage = progress.Stage
+        });
+    }
+
+    // POST /QA/GenerateProgress/{documentId}/clear
+    /// <summary>
+    /// 清除指定文档的进度记录（用户关闭进度条时调用）
+    /// </summary>
+    [HttpPost]
+    public IActionResult GenerateProgressClear(int documentId)
+    {
+        _progressTracker.Clear(documentId);
+        return Ok();
     }
 
     // POST /QA/Delete/{id}

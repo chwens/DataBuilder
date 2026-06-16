@@ -58,6 +58,15 @@
     function showError(containerId, msg) {
         var el = $(containerId);
         if (!el) return;
+        // 先 dispose 旧 ECharts 实例，释放资源并从 state.charts 中移除。
+        // 否则后续 initChart 检测到 state.charts[id] 存在 → 走 else 分支（resize + setOption）
+        // → 在已从 DOM 移除的 canvas 上操作 → 渲染结果不可见，图表静默消失。
+        if (state.charts[containerId]) {
+            if (!state.charts[containerId].isDisposed()) {
+                state.charts[containerId].dispose();
+            }
+            delete state.charts[containerId];
+        }
         el.innerHTML = '<div class="d-flex align-items-center justify-content-center h-100 text-danger">' +
             '<i class="bi bi-exclamation-triangle me-2"></i>' +
             '<span>' + (msg || '数据加载失败') + '</span></div>';
@@ -66,7 +75,13 @@
     function clearError(containerId) {
         var el = $(containerId);
         if (!el) return;
-        el.innerHTML = '';
+        // 目标化清除：仅移除错误提示 div 和 ECharts loading 残留。
+        // 严禁 innerHTML='' 全量清除——会摧毁 ECharts canvas 导致后续 setOption 静默失败。
+        var errDiv = el.querySelector(':scope > .d-flex.align-items-center.justify-content-center');
+        if (errDiv) errDiv.remove();
+        // 防御性清理：若 hideLoading 未正常调用，手动移除 ECharts loading 蒙层
+        var loadingDivs = el.querySelectorAll(':scope > .echarts-loading');
+        loadingDivs.forEach(function (d) { d.remove(); });
     }
 
     // ECharts 原生 loading：SVG spinner + 半透明蒙层。文字/颜色与 Bootstrap 主色对齐。
@@ -140,12 +155,38 @@
     // ============================================================
 
     function initChart(id, option) {
-        clearError(id);
         var dom = $(id);
         if (!dom) return null;
+
+        // 防御：若上一次 showError 已 dispose 旧实例 → state.charts[id] 被 delete，
+        // 走首次初始化分支（create + setOption）。
+        // 附加防御：即使 state.charts[id] 存在，也验证 canvas 子节点是否仍挂载在 DOM 中。
+        // 若 canvas 被外部操作移除（如 innerHTML 置换但未调 dispose），则先销毁后走新建分支。
+        if (state.charts[id]) {
+            if (state.charts[id].isDisposed()) {
+                state.charts[id] = null;
+            } else if (!dom.querySelector('canvas')) {
+                // 实例未 dispose 但 canvas 已脱离 DOM（极端边缘情况）
+                state.charts[id].dispose();
+                state.charts[id] = null;
+            }
+        }
+
         if (!state.charts[id]) {
+            // 首次初始化（或从错误/异常恢复）：清理容器中的错误提示文本，再创建 ECharts 实例
+            clearError(id);
             var inst = echarts.init(dom);
             state.charts[id] = inst;
+        } else {
+            // 重展开场景：ECharts 实例已存在但容器经历了 display:none → 可见，
+            // 需要先 hide 掉 showLoading 创建的蒙层，再 resize 测量正确的容器尺寸，
+            // 最后 setOption 渲染。否则 showLoading 蒙层 → resize(0×0) → setOption(true)
+            // 链路中，ECharts 的 zrender 可能因全局状态污染而将内容渲染到蒙层之下，
+            // 导致 hideLoading 移除蒙层后留下空白区域（图表静默消失）。
+            if (!state.charts[id].isDisposed()) {
+                state.charts[id].hideLoading();  // 先移除蒙层，确保渲染环境干净
+                state.charts[id].resize();       // 再测量容器真实尺寸
+            }
         }
         state.charts[id].setOption(option, true);
         return state.charts[id];
@@ -211,6 +252,25 @@
         var sorted = (data || []).slice().sort(function (a, b) { return b.value - a.value; });
         var names = sorted.map(function (d) { return d.name || '(空)'; });
         var values = sorted.map(function (d) { return d.value || 0; });
+
+        // 空数据：渲染「暂无主题数据」空状态，避免空白图表被误认为"消失"
+        if (sorted.length === 0) {
+            return {
+                graphic: {
+                    type: 'text',
+                    left: 'center',
+                    top: 'middle',
+                    style: {
+                        text: '暂无主题数据\n生成问答对后将自动打标',
+                        textAlign: 'center',
+                        fontSize: 14,
+                        fontWeight: 'normal',
+                        fill: '#9CA3AF',
+                        lineHeight: 22
+                    }
+                }
+            };
+        }
 
         return {
             tooltip: baseTooltipAxis(),
@@ -295,9 +355,9 @@
                 return c;
             })
             .catch(function (e) {
+                hideLoading('chart-qa-type');  // 无论何种错误都先关蒙层（含 AbortError）
                 if (e && e.name === 'AbortError') return;
                 console.error('[stats] QAType load failed:', e);
-                hideLoading('chart-qa-type');
                 showError('chart-qa-type');
             });
     }
@@ -310,9 +370,9 @@
                 return c;
             })
             .catch(function (e) {
+                hideLoading('chart-quality');
                 if (e && e.name === 'AbortError') return;
                 console.error('[stats] Quality load failed:', e);
-                hideLoading('chart-quality');
                 showError('chart-quality');
             });
     }
@@ -339,9 +399,9 @@
                 }
             })
             .catch(function (e) {
+                hideLoading('chart-topic');  // 无论何种错误都先关蒙层（含 AbortError）
                 if (e && e.name === 'AbortError') return;
                 console.error('[stats] Topic load failed:', e);
-                hideLoading('chart-topic');
                 showError('chart-topic');
             });
     }
@@ -354,9 +414,9 @@
                 return c;
             })
             .catch(function (e) {
+                hideLoading('chart-doc-top');
                 if (e && e.name === 'AbortError') return;
                 console.error('[stats] DocTop load failed:', e);
-                hideLoading('chart-doc-top');
                 showError('chart-doc-top');
             });
     }
@@ -369,9 +429,9 @@
                 return c;
             })
             .catch(function (e) {
+                hideLoading('chart-answer');
                 if (e && e.name === 'AbortError') return;
                 console.error('[stats] Answer load failed:', e);
-                hideLoading('chart-answer');
                 showError('chart-answer');
             });
     }
@@ -488,10 +548,9 @@
             // 等 Bootstrap transition 完成（默认 350ms）再 init/resize
             setTimeout(function () {
                 if (state.initialized) {
-                    Object.keys(state.charts).forEach(function (k) {
-                        var c = state.charts[k];
-                        if (c && !c.isDisposed()) c.resize();
-                    });
+                    // Re-fetch data to reflect latest QA pairs, not just resize.
+                    // refreshAll aborts any in-flight previous request and re-fetches all 5 endpoints.
+                    refreshAll(false);
                 } else {
                     refreshAll(false);
                     state.initialized = true;

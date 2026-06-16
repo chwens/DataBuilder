@@ -90,6 +90,9 @@ public class SpConsistencyService : IHostedService
     /// <summary>
     /// 拆分 DROP + CREATE 为独立语句（避免 MySqlScript 在 2.5.0 中已移除）。
     /// 顺序：DROP 全部 → CREATE 全部。中间任一 DROP 失败则 CREATE 全部跳过。
+    /// 注意：仅 sp_stat_qa_topic 需要 Topic NOT NULL 硬过滤（它 GROUP BY Topic，NULL 无法分组）；
+    ///       其余 4 个 SP（type/quality/doc_top/answer_status）不按 Topic 分组，不应过滤无 Topic 的 QA 对，
+    ///       确保图表在 Topic 被异步标记之前就能反映数据。
     /// </summary>
     private static IReadOnlyList<string> BuildRebuildStatements() => new[]
     {
@@ -105,7 +108,6 @@ BEGIN
     INNER JOIN Chunks c ON q.ChunkId = c.Id
     INNER JOIN Documents d ON c.DocumentId = d.Id
     WHERE d.ProjectId = p_project_id
-      AND q.Topic IS NOT NULL AND q.Topic <> ''
       AND (p_topic IS NULL OR q.Topic = p_topic)
     GROUP BY q.`Type`
     ORDER BY `Value` DESC, q.`Type` ASC;
@@ -117,7 +119,6 @@ BEGIN
     INNER JOIN Chunks c ON q.ChunkId = c.Id
     INNER JOIN Documents d ON c.DocumentId = d.Id
     WHERE d.ProjectId = p_project_id
-      AND q.Topic IS NOT NULL AND q.Topic <> ''
       AND (p_topic IS NULL OR q.Topic = p_topic)
     GROUP BY q.QualityScore
     ORDER BY `Count` DESC, q.QualityScore ASC;
@@ -148,7 +149,6 @@ BEGIN
     INNER JOIN Chunks c ON q.ChunkId = c.Id
     INNER JOIN Documents d ON c.DocumentId = d.Id
     WHERE d.ProjectId = p_project_id
-      AND q.Topic IS NOT NULL AND q.Topic <> ''
       AND (p_topic IS NULL OR q.Topic = p_topic)
     GROUP BY d.FileName
     ORDER BY `Value` DESC, d.FileName ASC
@@ -163,7 +163,6 @@ BEGIN
     INNER JOIN Chunks c ON q.ChunkId = c.Id
     INNER JOIN Documents d ON c.DocumentId = d.Id
     WHERE d.ProjectId = p_project_id
-      AND q.Topic IS NOT NULL AND q.Topic <> ''
       AND (p_topic IS NULL OR q.Topic = p_topic)
     GROUP BY q.Answered
     ORDER BY `Value` DESC, q.Answered ASC;

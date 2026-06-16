@@ -22,6 +22,16 @@
         </div>
     }
 
+    @if (Model.Document.Status == DocumentStatus.Done
+         && Model.QAPairs.Any()
+         && Model.QAPairs.All(q => string.IsNullOrWhiteSpace(q.Topic)))
+    {
+        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            <strong>主题标签尚未生成</strong>：当前文档的问答对还未完成主题打标，统计页主题分布图将不显示。可点击下方「重新打标」手动生成。
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="关闭"></button>
+        </div>
+    }
+
     @* 文档信息头（标题+括号数字 · 视觉铁律 #6） *@
     <div class="card mb-3">
         <div class="card-body">
@@ -80,6 +90,11 @@
         </div>
     </div>
 
+    @* 文档 Chunk 数量，供前端 JS 计算进度百分比 *@
+    @{
+        int chunkCount = Model.Document.Chunks?.Count ?? 0;
+    }
+
     @if (!Model.QAPairs.Any())
     {
         <div class="card mb-4">
@@ -87,7 +102,7 @@
                 <h5 class="mb-0">生成问题</h5>
             </div>
             <div class="card-body">
-                <form asp-action="GenerateQuestions" method="post">
+                <form asp-action="GenerateQuestions" method="post" class="generate-form" data-total="@chunkCount">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="documentId" value="@Model.Document.Id" />
                     <div class="row g-3">
@@ -123,9 +138,12 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">问题列表</h5>
                 <div>
-                    @if (Model.QAPairs.Any(q => !q.Answered))
+                    @{
+                        int unansweredCount = Model.QAPairs.Count(q => !q.Answered);
+                    }
+                    @if (unansweredCount > 0)
                     {
-                        <form asp-action="GenerateAnswers" method="post" class="d-inline" onsubmit="return confirm('确认要为所有待回答问题生成答案吗？')">
+                        <form asp-action="GenerateAnswers" method="post" class="d-inline generate-form" data-total="@unansweredCount" onsubmit="return false;">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="documentId" value="@Model.Document.Id" />
                             <button type="submit" class="btn btn-l3-magic">生成全部答案</button>
@@ -173,17 +191,47 @@
             <div class="d-flex gap-2">
                 <button id="btnExportSelected" class="btn btn-l1" disabled>导出选中</button>
                 <a asp-controller="Export" asp-action="Download" asp-route-projectId="@projectId" class="btn btn-l2">导出全部</a>
+                <form asp-action="RetagTopics" method="post" class="d-inline generate-form" data-total="1" onsubmit="return false;">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="documentId" value="@Model.Document.Id" />
+                    <button type="submit" class="btn btn-l2">重新打标</button>
+                </form>
             </div>
         </div>
     }
 </div>
 
+@* 生成进度条遮罩层（默认隐藏，JS 控制显示/隐藏） *@
+<div id="progressOverlay" class="progress-overlay" style="display: none;">
+    <div class="progress-card" id="progressCard">
+        <div class="progress-card-title">
+            <span class="spinner-icon"></span>
+            <span class="error-icon" style="display:none;"><i class="bi bi-exclamation-triangle"></i></span>
+            <span class="check-icon" style="display:none;"><i class="bi bi-check-circle"></i></span>
+            <span id="progressStage">正在生成...</span>
+        </div>
+        <p class="progress-card-desc" id="progressDesc">正在连接 LLM 服务</p>
+        <div class="progress">
+            <div class="progress-bar" id="progressBar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+        </div>
+        <div class="progress-card-stats">
+            <span id="progressCurrent">0</span>
+            <span id="progressPercent">0%</span>
+            <span id="progressTotal">/ 0</span>
+        </div>
+        <p class="progress-card-footer" id="progressFooter">请耐心等待，不要关闭页面</p>
+    </div>
+</div>
+
 @section Scripts {
     <script>
+        // ===== 复选框 / 导出逻辑（原有功能，保持不变） =====
         (function() {
             var selectAll = document.getElementById('selectAll');
             var checkboxes = document.querySelectorAll('.qa-checkbox');
             var btnExport = document.getElementById('btnExportSelected');
+
+            if (!selectAll || checkboxes.length === 0) return;
 
             function updateSelectAll() {
                 if (checkboxes.length === 0) return;
@@ -205,7 +253,7 @@
                         break;
                     }
                 }
-                btnExport.disabled = !anyChecked;
+                if (btnExport) btnExport.disabled = !anyChecked;
             }
 
             selectAll.addEventListener('change', function() {
@@ -222,16 +270,199 @@
                 });
             }
 
-            btnExport.addEventListener('click', function() {
-                var selectedIds = [];
-                for (var i = 0; i < checkboxes.length; i++) {
-                    if (checkboxes[i].checked) {
-                        selectedIds.push(checkboxes[i].value);
+            if (btnExport) {
+                btnExport.addEventListener('click', function() {
+                    var selectedIds = [];
+                    for (var i = 0; i < checkboxes.length; i++) {
+                        if (checkboxes[i].checked) {
+                            selectedIds.push(checkboxes[i].value);
+                        }
                     }
+                    if (selectedIds.length === 0) return;
+                    window.location.href = '/Export/ExportSelected?qaIds=' + selectedIds.join(',');
+                });
+            }
+        })();
+
+        // ===== 生成进度条逻辑 =====
+        (function() {
+            var documentId = @Model.Document.Id;
+            var pollTimer = null;
+            var overlay = document.getElementById('progressOverlay');
+            var progressCard = document.getElementById('progressCard');
+            var progressBar = document.getElementById('progressBar');
+            var progressStage = document.getElementById('progressStage');
+            var progressDesc = document.getElementById('progressDesc');
+            var progressCurrent = document.getElementById('progressCurrent');
+            var progressTotal = document.getElementById('progressTotal');
+            var progressPercent = document.getElementById('progressPercent');
+            var progressFooter = document.getElementById('progressFooter');
+            var spinnerIcon = progressCard.querySelector('.spinner-icon');
+            var errorIcon = progressCard.querySelector('.error-icon');
+            var checkIcon = progressCard.querySelector('.check-icon');
+
+            function showProgress() {
+                overlay.style.display = 'flex';
+                progressCard.classList.remove('error', 'completed');
+                progressBar.style.width = '0%';
+                progressBar.setAttribute('aria-valuenow', '0');
+                progressCurrent.textContent = '0';
+                progressPercent.textContent = '0%';
+                progressFooter.textContent = '请耐心等待，不要关闭页面';
+                spinnerIcon.style.display = 'inline-block';
+                errorIcon.style.display = 'none';
+                checkIcon.style.display = 'none';
+            }
+
+            function updateProgress(data) {
+                var pct = data.percent || 0;
+                progressBar.style.width = pct + '%';
+                progressBar.setAttribute('aria-valuenow', pct);
+                progressCurrent.textContent = data.current || 0;
+                progressTotal.textContent = '/ ' + (data.total || 0);
+                progressPercent.textContent = pct + '%';
+                if (data.stage) {
+                    progressStage.textContent = data.stage;
+                    progressDesc.textContent = '已完成 ' + (data.current || 0) + ' / ' + (data.total || 0);
                 }
-                if (selectedIds.length === 0) return;
-                window.location.href = '/Export/ExportSelected?qaIds=' + selectedIds.join(',');
-            });
+            }
+
+            function showCompleted(data) {
+                progressCard.classList.add('completed');
+                spinnerIcon.style.display = 'none';
+                errorIcon.style.display = 'none';
+                checkIcon.style.display = 'inline-block';
+                progressBar.style.width = '100%';
+                progressBar.setAttribute('aria-valuenow', '100');
+                progressPercent.textContent = '100%';
+                progressStage.textContent = '生成完成';
+                progressDesc.textContent = '页面即将刷新...';
+                progressFooter.textContent = '正在跳转';
+            }
+
+            function showError(errorMsg) {
+                progressCard.classList.add('error');
+                spinnerIcon.style.display = 'none';
+                checkIcon.style.display = 'none';
+                errorIcon.style.display = 'inline-block';
+                progressBar.style.width = '100%';
+                progressBar.setAttribute('aria-valuenow', '100');
+                progressPercent.textContent = '失败';
+                progressStage.textContent = '生成失败';
+                progressDesc.textContent = errorMsg || '未知错误';
+                progressFooter.textContent = '请关闭后重试';
+            }
+
+            function startPolling() {
+                stopPolling();
+                pollTimer = setInterval(function() {
+                    fetch('/QA/GenerateProgress/' + documentId, {
+                        headers: { 'Accept': 'application/json' }
+                    })
+                    .then(function(resp) { return resp.json(); })
+                    .then(function(data) {
+                        if (!data || !data.isRunning) {
+                            // 可能已完成或出错
+                            if (data) {
+                                if (data.isCompleted) {
+                                    showCompleted(data);
+                                    stopPolling();
+                                    // 延迟刷新，让用户看到 100% 完成状态
+                                    setTimeout(function() {
+                                        window.location.href = '/QA/Preview/' + documentId;
+                                    }, 800);
+                                } else if (data.isError) {
+                                    showError(data.errorMessage || '服务器处理出错');
+                                    stopPolling();
+                                }
+                            }
+                            return;
+                        }
+                        updateProgress(data);
+                    })
+                    .catch(function() {
+                        // 网络错误，忽略（等待下次轮询）
+                    });
+                }, 500);
+            }
+
+            function stopPolling() {
+                if (pollTimer) {
+                    clearInterval(pollTimer);
+                    pollTimer = null;
+                }
+            }
+
+            // 拦截所有 .generate-form 表单提交
+            var generateForms = document.querySelectorAll('.generate-form');
+            for (var i = 0; i < generateForms.length; i++) {
+                (function(form) {
+                    form.addEventListener('submit', function(e) {
+                        e.preventDefault();
+
+                        // 如果是"重新打标"表单，需要确认
+                        if (form.action.indexOf('RetagTopics') !== -1) {
+                            if (!confirm('将对全部问题重新聚类归一化主题，已有主题标签会被覆盖（LLM 结果可能变化）。继续？')) {
+                                return;
+                            }
+                        }
+
+                        // 如果是"生成全部答案"表单，需要确认
+                        var isAnswerForm = form.action.indexOf('GenerateAnswers') !== -1;
+                        if (isAnswerForm) {
+                            if (!confirm('确认要为所有待回答问题生成答案吗？')) {
+                                return;
+                            }
+                        }
+
+                        // 先清除上一次的进度记录（如果有的话）
+                        fetch('/QA/GenerateProgressClear/' + documentId, {
+                            method: 'POST'
+                        }).catch(function() {});
+
+                        showProgress();
+
+                        var formData = new FormData(form);
+
+                        // 延迟启动轮询（给服务器一点时间开始处理）
+                        setTimeout(function() {
+                            startPolling();
+                        }, 300);
+
+                        // 通过 fetch 提交表单
+                        fetch(form.action, {
+                            method: 'POST',
+                            body: formData,
+                            headers: {
+                                'RequestVerificationToken': formData.get('__RequestVerificationToken')
+                            }
+                        })
+                        .then(function(response) {
+                            stopPolling();
+
+                            if (response.redirected) {
+                                // 服务器返回重定向，说明成功，跳转到目标页面
+                                showCompleted({});
+                                setTimeout(function() {
+                                    window.location.href = response.url;
+                                }, 800);
+                            } else if (!response.ok) {
+                                // HTTP 错误
+                                return response.text().then(function(text) {
+                                    showError('服务器返回错误 (' + response.status + '): ' + (text || '').substring(0, 200));
+                                });
+                            } else {
+                                // 成功但无重定向（不太可能，作为降级处理）
+                                window.location.href = '/QA/Preview/' + documentId;
+                            }
+                        })
+                        .catch(function(err) {
+                            stopPolling();
+                            showError('网络请求失败: ' + err.message);
+                        });
+                    });
+                })(generateForms[i]);
+            }
         })();
     </script>
 }

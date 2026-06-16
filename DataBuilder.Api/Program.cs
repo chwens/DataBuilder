@@ -51,9 +51,12 @@ builder.Services.AddScoped<ILLMService, LLMService>();
 // 主题打标服务（LLM 两轮打标）— Scoped，内部按 ScopeFactory 自行创建 DbContext
 builder.Services.AddScoped<ITopicTaggerService, TopicTaggerService>();
 
-// 主题打标后台队列（BackgroundService + Channel）— Singleton，DI 自动管理生命周期
-builder.Services.AddSingleton<ITopicTaggingQueue, TopicTaggingQueue>();
-builder.Services.AddHostedService<TopicTaggingQueue>();
+// 主题打标后台队列（BackgroundService + Channel）
+// 关键：ITopicTaggingQueue、IHostedService、TopicTaggingQueue 三者必须共享同一个实例，
+// 否则 QAController 写入的 Channel 和 BackgroundService 读取的 Channel 是两个独立实例，打标永不执行。
+builder.Services.AddSingleton<TopicTaggingQueue>();
+builder.Services.AddSingleton<ITopicTaggingQueue>(sp => sp.GetRequiredService<TopicTaggingQueue>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<TopicTaggingQueue>());
 
 // 启动期一次性重建 5 个 QA 统计 SP（保证 5 SP 一致性，替代 migration 中的非事务 DROP+CREATE）
 builder.Services.AddHostedService<SpConsistencyService>();
@@ -61,6 +64,9 @@ builder.Services.AddHostedService<SpConsistencyService>();
 builder.Services.Configure<SiteOptions>(builder.Configuration.GetSection("Site"));
 
 builder.Services.AddSingleton<IEncryptionService, EncryptionService>();
+
+// 生成进度跟踪器（Singleton，前端轮询读取）
+builder.Services.AddSingleton<GenerationProgressTracker>();
 
 // AOP 切片：全局 Action 过滤器，必须注册到 DI 才能被 AddService<T>() 解析
 builder.Services.AddScoped<AuditLogFilter>();

@@ -17,9 +17,11 @@ public interface ILLMService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 第二步：为指定问题生成答案（指定模型配置）
+    /// 第二步：为指定问题生成答案并同步返回主题标签（指定模型配置）。
+    /// LLM 同时返回答案内容和 1-3 个中文主题标签，避免二次 LLM 调用。
     /// </summary>
-    Task<string> GenerateAnswerAsync(string chunkText, string question, LLMConfig config,
+    /// <returns>结构化响应，包含 TopicRaw（原始主题标签）和 Answer（答案内容）。</returns>
+    Task<AnswerWithTopic> GenerateAnswerAsync(string chunkText, string question, LLMConfig config,
         string? customPrompt = null,
         CancellationToken cancellationToken = default);
 

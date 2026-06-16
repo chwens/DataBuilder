@@ -1447,3 +1447,132 @@ a:hover { color: var(--primary-dark); }
     background: #1E40AF;
     color: #ffffff;
 }
+
+/* ====================================================================== */
+/* ===== 生成进度条（Phase E5：LLM 调用实时进度反馈） ===== */
+/* ====================================================================== */
+
+/* 进度条遮罩层：覆盖全屏，半透明背景 */
+.progress-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+/* 进度卡片：白色卡片居中，最大宽度 480px */
+.progress-card {
+    background: #FFFFFF;
+    border-radius: 16px;
+    padding: 2rem 2rem 1.75rem;
+    width: 90%;
+    max-width: 480px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    text-align: center;
+}
+
+/* 进度卡片标题 */
+.progress-card-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+/* 进度卡片标题图标（旋转动画） */
+.progress-card-title .spinner-icon {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2.5px solid #E5E7EB;
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: progress-spin 0.8s linear infinite;
+}
+
+@keyframes progress-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* 进度描述文字 */
+.progress-card-desc {
+    font-size: 0.875rem;
+    color: #6B7280;
+    margin-bottom: 1.25rem;
+}
+
+/* Bootstrap 进度条定制（覆盖默认） */
+.progress-card .progress {
+    height: 8px;
+    border-radius: 4px;
+    background: #F3F4F6;
+    overflow: hidden;
+}
+
+.progress-card .progress-bar {
+    background: var(--primary);
+    border-radius: 4px;
+    transition: width 0.4s ease;
+}
+
+/* 出错状态：进度条变红 */
+.progress-card.error .progress-bar {
+    background: var(--danger);
+}
+
+.progress-card.error .progress-card-title {
+    color: var(--danger);
+}
+
+.progress-card.error .spinner-icon {
+    display: none;
+}
+
+.progress-card.error .error-icon {
+    display: inline-block;
+    color: var(--danger);
+    font-size: 1.25rem;
+}
+
+/* 完成状态 */
+.progress-card.completed .progress-bar {
+    background: var(--success);
+}
+
+.progress-card.completed .spinner-icon {
+    display: none;
+}
+
+.progress-card.completed .check-icon {
+    display: inline-block;
+    color: var(--success);
+    font-size: 1.25rem;
+}
+
+/* 进度卡片底部提示 */
+.progress-card-footer {
+    font-size: 0.8rem;
+    color: #9CA3AF;
+    margin-top: 1rem;
+}
+
+/* 进度数字 */
+.progress-card-stats {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: #6B7280;
+    margin-top: 0.5rem;
+}

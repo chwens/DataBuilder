@@ -118,7 +118,7 @@ public class TopicTaggingQueue : BackgroundService, ITopicTaggingQueue
         {
             // 在独立 Scope 中解析 Scoped 服务（AppDbContext、TopicTaggerService）
             using var scope = _scopeFactory.CreateScope();
-            var tagger = scope.ServiceProvider.GetRequiredService<TopicTaggerService>();
+            var tagger = scope.ServiceProvider.GetRequiredService<ITopicTaggerService>();
 
             _logger.LogInformation("TopicTaggingQueue 开始处理: DocumentId={DocumentId}", documentId);
             await tagger.ClusterDocumentAsync(documentId);

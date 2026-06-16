@@ -107,9 +107,12 @@ public class LLMService : ILLMService
     // ==================== 第二步：生成答案 ====================
 
     /// <summary>
-    /// 第二步：为指定问题生成答案（指定模型配置）
+    /// 第二步：为指定问题生成答案并同步返回主题标签（指定模型配置）。
+    /// LLM 返回 JSON 对象 <c>{"topic": "...", "answer": "..."}</c>，
+    /// 同时包含答案内容和 1-3 个中文主题标签，避免二次 LLM 打标调用。
+    /// 若使用自定义 Prompt 或 JSON 解析失败，回退为纯文本答案 + 空 TopicRaw。
     /// </summary>
-    public async Task<string> GenerateAnswerAsync(
+    public async Task<AnswerWithTopic> GenerateAnswerAsync(
         string chunkText, string question, LLMConfig config,
         string? customPrompt = null,
         CancellationToken cancellationToken = default)
@@ -121,7 +124,7 @@ public class LLMService : ILLMService
 
         var response = await CallLLMWithConfigAsync(
             config, systemPrompt, userPrompt, config.MaxTokens, cancellationToken);
-        return response.Trim();
+        return ParseAnswerWithTopic(response.Trim());
     }
 
     // ==================== 通用 Chat Completion（用于打标等辅助任务）====================
@@ -304,7 +307,8 @@ public class LLMService : ILLMService
     }
 
     /// <summary>
-    /// 默认"答案生成专家" System Prompt
+    /// 默认"答案生成+主题打标" System Prompt
+    /// 要求 LLM 在生成答案的同时返回 Topic 标签，避免二次 LLM 调用。
     /// 参考 EasyDataset lib/llm/prompts/answer.js
     /// </summary>
     private static string BuildDefaultAnswerSystemPrompt()
@@ -314,6 +318,7 @@ public class LLMService : ILLMService
 
 ## Profile
 你是一名专业的微调数据集生成专家，擅长从给定的参考内容中生成高质量、准确的答案。
+同时你也是一名主题分类专家，能为每个问答对准确标注主题标签。
 你对参考内容中的所有信息已内化为专业知识。
 
 ## Skills
@@ -321,19 +326,29 @@ public class LLMService : ILLMService
 2. 答案必须准确，不能胡编乱造
 3. 答案必须与问题紧密相关
 4. 答案必须符合逻辑，条理清晰
+5. 能够准确识别问题的核心主题并给出简短标签
 
 ## Workflow
 1. 深呼吸，逐步思考问题
 2. 分析参考内容，定位与问题相关的段落
 3. 提取关键信息并组织语言
-4. 生成准确、完整的答案
-5. 自检：确认答案中的所有事实都可在参考内容中找到依据
+4. 识别问题的核心主题，给出 1-3 个简短中文标签（逗号分隔）
+5. 生成准确、完整的答案
+6. 自检：确认答案中的所有事实都可在参考内容中找到依据，主题标签准确概括问题核心
 
 ## Constraints
 1. 答案必须基于给定的参考内容，不允许使用外部知识
 2. 答案应充分、详细、包含所有必要的信息，适合微调大模型训练使用
 3. 不得出现"参考""依据""文献中提到""根据原文"等引用性表述
 4. 直接给出答案内容，不要附加解释或元信息
+5. topic 标签每个不超过 10 个字，使用名词或名词短语（如"算法""数据结构""操作系统"）
+6. 若问题包含多个主题，给出多个标签（最多 3 个，逗号分隔）
+
+## OutputFormat
+严格输出 JSON 对象，不要包含任何其他文字：
+```json
+{"topic": "算法,数据结构", "answer": "基于参考内容，该算法的核心思想是……"}
+```
 """;
     }
 
@@ -365,7 +380,7 @@ public class LLMService : ILLMService
 
 {{question}}
 
-请根据参考内容，生成以上问题的答案。
+请根据参考内容，生成以上问题的答案，并标注 1-3 个简短中文主题标签（topic）。
 """;
     }
 
@@ -395,6 +410,44 @@ public class LLMService : ILLMService
         {
             return new List<string>();
         }
+    }
+
+    /// <summary>
+    /// 从 LLM 响应中解析 JSON 对象，提取 topic 和 answer 字段。
+    /// 成功时返回结构化 AnswerWithTopic；JSON 解析失败或字段缺失时回退：
+    /// 将原始文本作为纯答案，TopicRaw 留空（由 TopicTaggingQueue 后续补打）。
+    /// </summary>
+    private static AnswerWithTopic ParseAnswerWithTopic(string rawText)
+    {
+        // 尝试从 LLM 响应中提取 JSON 对象
+        var jsonMatch = LlmJsonRegex.Object.Match(rawText);
+        if (jsonMatch.Success)
+        {
+            try
+            {
+                var dto = JsonSerializer.Deserialize<AnswerWithTopicDto>(jsonMatch.Value, JsonOptions);
+                if (dto != null && !string.IsNullOrWhiteSpace(dto.answer))
+                {
+                    var topicRaw = dto.topic ?? string.Empty;
+                    var answer = dto.answer;
+                    return new AnswerWithTopic(topicRaw, answer);
+                }
+            }
+            catch (JsonException)
+            {
+                // JSON 格式不符预期，回退到纯文本模式
+            }
+        }
+
+        // 回退：将原始文本作为纯答案，TopicRaw 留空
+        // TopicTaggingQueue 第一轮打标会为 TopicRaw 为空的 QA 补充标签
+        return new AnswerWithTopic(string.Empty, rawText);
+    }
+
+    private sealed class AnswerWithTopicDto
+    {
+        public string? topic { get; set; }
+        public string? answer { get; set; }
     }
 
     private static string TypeDisplayName(string type) => type switch
